@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>WarEra Tactical OS - Deep Purple Contrast</title>
+    <title>WarEra Diplomacy view</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -27,10 +27,10 @@
 
 <div id="top-left" class="overlay">
     <div class="panel">
-        <strong style="color: #00d4ff;">WARERA TACTICAL OS</strong>
+        <strong style="color: #00d4ff;">WARERA DIPLOMACY VIEW</strong>
         <div style="margin-top: 10px;">
             <input type="text" id="cercaInput" placeholder="Cerca nazione...">
-            <button onclick="cercaNazione()">ANALIZZA</button>
+            <button onclick="cercaNazione()">SEARCH</button>
             <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
         </div>
     </div>
@@ -38,9 +38,9 @@
 
 <div id="top-right" class="overlay">
     <div class="panel">
-        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (AZZURRO)</strong>
-        <select id="napSelect" style="margin-top: 8px;"><option value="">Caricamento...</option></select>
-        <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000;">AGGIUNGI</button>
+        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (LIGHTBLUE)</strong>
+        <select id="napSelect" style="margin-top: 8px;"><option value="">loading...</option></select>
+        <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000;">ADD</button>
         <div id="napList" style="margin-top: 10px;"></div>
     </div>
 </div>
@@ -154,7 +154,7 @@
     function popolaSelect() {
         const select = document.getElementById('napSelect');
         const currentVal = select.value;
-        select.innerHTML = '<option value="">-- Seleziona --</option>';
+        select.innerHTML = '<option value="">-- Select --</option>';
         [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
             const opt = document.createElement('option');
             opt.value = n._id; opt.textContent = n.name;
