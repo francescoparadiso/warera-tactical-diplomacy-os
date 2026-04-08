@@ -2,6 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>WarEra Diplomacy OS - Strategic Intelligence Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -9,33 +10,73 @@
     <style>
         body { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #010409 !important; }
-        .overlay { position: absolute; z-index: 1000; pointer-events: none; }
-        .panel { background: rgba(10, 10, 10, 0.95); border: 1px solid #333; padding: 12px; border-radius: 6px; pointer-events: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        #top-left { top: 15px; left: 15px; display: flex; flex-direction: column; gap: 10px; }
-        #top-right { top: 15px; right: 15px; width: 250px; }
-        .options-menu { margin-top: 10px; border-top: 1px solid #333; padding-top: 12px; }
-        .switch-container { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+        
+        /* UI Base */
+        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+        .panel { 
+            background: rgba(10, 10, 10, 0.95); 
+            border: 1px solid #333; 
+            padding: 12px; 
+            border-radius: 8px; 
+            pointer-events: auto; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+        }
+
+        /* Desktop Layout */
+        #top-left { top: 15px; left: 15px; width: 280px; }
+        #top-right { top: 15px; right: 15px; width: 280px; }
+        #legend-container { bottom: 25px; left: 15px; }
+
+        /* Responsive Logic */
+        @media (max-width: 768px) {
+            #top-left, #top-right { 
+                left: 10px; 
+                right: 10px; 
+                width: calc(100% - 20px); 
+                max-width: none;
+            }
+            #top-left { top: 10px; }
+            #top-right { 
+                top: auto; 
+                bottom: 80px; /* Sopra la legenda */
+                max-height: 30vh;
+                overflow-y: auto;
+            }
+            #legend-container { bottom: 10px; left: 10px; width: calc(100% - 20px); }
+            
+            .switch-label { font-size: 13px; }
+            input[type="text"], button { padding: 12px; font-size: 14px; } /* Più grandi per le dita */
+        }
+
+        .options-menu { margin-top: 10px; border-top: 1px solid #333; padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .switch-container { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; padding: 4px 0; }
         .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
-        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444; }
-        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
         input:checked + .slider { background-color: #0062ff; border-color: #00d4ff; }
-        input:checked + .slider:before { transform: translateX(16px); background-color: #fff; }
-        #legend-container { bottom: 25px; left: 15px; display: flex; flex-direction: column; gap: 8px; transition: all 0.3s ease; }
-        .legend-content { transition: opacity 0.3s ease, transform 0.3s ease; transform-origin: bottom left; }
-        .legend-content.hidden { opacity: 0; transform: scale(0.8) translateY(20px); pointer-events: none; }
-        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-bottom: 5px; text-transform: uppercase; font-weight: bold; }
-        .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #fff; }
-        .toggle-btn { width: 30px; height: 30px; background: #1a1a1a; border: 1px solid #444; color: #00d4ff; border-radius: 50%; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; pointer-events: auto; box-shadow: 0 2px 5px #000; }
-        input[type="text"], button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
-        button { cursor: pointer; background: #0062ff; border: none; font-weight: bold; margin-top: 5px; text-transform: uppercase; }
-        button:hover { background: #0052d6; }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .legend-content { transition: opacity 0.3s ease, transform 0.3s ease; transform-origin: bottom left; margin-bottom: 8px;}
+        .legend-content.hidden { opacity: 0; transform: scale(0.9) translateY(10px); pointer-events: none; display: none; }
+        .legend-item { display: flex; align-items: center; gap: 10px; font-size: 11px; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; }
+        .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff; flex-shrink: 0; }
+        
+        .toggle-btn { 
+            width: 40px; height: 40px; background: #1a1a1a; border: 1px solid #444; 
+            color: #00d4ff; border-radius: 50%; cursor: pointer; font-size: 18px;
+            display: flex; align-items: center; justify-content: center; pointer-events: auto; 
+        }
+
+        input[type="text"], button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+        button { cursor: pointer; background: #0062ff; border: none; font-weight: bold; margin-top: 6px; text-transform: uppercase; }
         .btn-reset { background: #333; }
+        
         .nation-label { background: transparent !important; border: none !important; pointer-events: none !important; }
-        .nation-name { font-size: 10px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 3px #000; color: #fff; pointer-events: none; }
-        .nap-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 5px 8px; margin-top: 5px; border-left: 3px solid #00d4ff; font-size: 11px; }
-        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; }
+        .nation-name { font-size: 10px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 4px #000; color: #fff; white-space: nowrap; }
+        .nap-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 8px 12px; margin-top: 6px; border-left: 4px solid #00d4ff; border-radius: 4px; font-size: 12px; }
+        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 16px; padding-left: 10px; }
     </style>
 </head>
 <body>
@@ -44,17 +85,26 @@
 
 <div id="top-left" class="overlay">
     <div class="panel">
-        <strong style="color: #00d4ff;">WARERA DIPLOMACY OS</strong>
-        <div style="margin-top: 10px;">
+        <strong style="color: #00d4ff; font-size: 14px;">WARERA DIPLOMACY OS</strong>
+        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
             <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation...">
-            <button onclick="cercaNazione()">SEARCH</button>
-            <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="cercaNazione()">SEARCH</button>
+                <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
+            </div>
         </div>
         <div class="options-menu">
             <label class="switch-container">
-                <span class="switch-label">Extended Intelligence</span>
+                <span class="switch-label">Extended Diplomacy</span>
                 <div class="switch">
                     <input type="checkbox" id="checkExtended" onchange="renderMap()">
+                    <span class="slider"></span>
+                </div>
+            </label>
+            <label class="switch-container">
+                <span class="switch-label">Show Nation Names</span>
+                <div class="switch">
+                    <input type="checkbox" id="checkLabels" checked onchange="renderMap()">
                     <span class="slider"></span>
                 </div>
             </label>
@@ -64,15 +114,17 @@
 
 <div id="top-right" class="overlay">
     <div class="panel">
-        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (LIGHTBLUE)</strong>
-        <input type="text" id="napInput" list="nazioniList" style="margin-top: 8px;" placeholder="Scrivi nazione...">
-        <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000;">ADD</button>
-        <div id="napList" style="margin-top: 10px;"></div>
+        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (PRIORITY)</strong>
+        <div style="display: flex; gap: 5px; margin-top: 8px;">
+            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP...">
+            <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000; margin-top: 0; width: 80px;">ADD</button>
+        </div>
+        <div id="napList" style="margin-top: 5px;"></div>
     </div>
 </div>
 
 <div id="legend-container" class="overlay">
-    <div id="dynamic-legend" class="panel legend-content"></div>
+    <div id="dynamic-legend" class="panel legend-content hidden"></div>
     <div class="toggle-btn" onclick="toggleLegend()">i</div>
 </div>
 
@@ -106,17 +158,23 @@
         }
         legendBox.innerHTML = `
             <div class="legend-item"><div class="dot" style="background: ${COLORS.SELECTED};"></div> SELECTED</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div> MANUAL NAP (PRIORITY)</div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div> MANUAL NAP</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_DIRECT};"></div> DIRECT WAR</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div> INDIRECT ENEMY</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_DIRECT};"></div> DIRECT ALLY</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_INDIRECT};"></div> INDIRECT ALLY</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid #fff;"></div> NEUTRAL LAND</div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid #fff;"></div> NEUTRAL</div>
         `;
     }
 
     async function init() {
-        map = L.map('map', { center: [20, 0], zoom: 3, zoomControl: false, attributionControl: false });
+        map = L.map('map', { 
+            center: [20, 0], 
+            zoom: 2, 
+            zoomControl: false, 
+            attributionControl: false,
+            maxBounds: [[-85, -180], [85, 180]]
+        });
         layers.labels.addTo(map);
         await refreshData();
     }
@@ -131,9 +189,10 @@
             mapDataGlobal = (await resM.json()).result.data;
             popolaListe();
             renderMap();
-        } catch (e) { console.error("Error fetching data:", e); }
+        } catch (e) { console.error("Data Error:", e); }
     }
 
+    // [Funzioni Logiche getIndirectAllies e getEnemyAllies invariate come richiesto]
     function getIndirectAllies(targetId) {
         const target = nazioniGlobal.find(n => n._id === targetId);
         if (!target || !target.allies) return [];
@@ -164,9 +223,10 @@
         if (!mapDataGlobal) return;
         updateDynamicLegend();
         const topoData = mapDataGlobal.map;
-        const labelsSource = mapDataGlobal.countryLabels || (topoData.objects ? topoData.objects.countryLabels : null);
-        const labelsData = labelsSource ? (labelsSource.geometries || []) : [];
+        const labelsData = (mapDataGlobal.countryLabels || (topoData.objects.countryLabels ? topoData.objects.countryLabels.geometries : []));
+        
         const isExtended = document.getElementById('checkExtended').checked;
+        const showLabels = document.getElementById('checkLabels').checked;
 
         if (layers.regions) map.removeLayer(layers.regions);
         if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
@@ -191,40 +251,17 @@
                 let opacity = 0.8;
 
                 if (selectedCountryId) {
-                    const isWar = directWars.includes(cId);
-                    const isDirAlly = directAllies.includes(cId);
-                    const isIndirAlly = indirectAllies.includes(cId);
-                    const isEnemyAlly = enemyAllies.includes(cId);
                     const isManualNap = customNaps.includes(cId);
-
-                    // --- RIGID PRIORITY LOGIC ---
-                    if (cId === selectedCountryId) { 
-                        color = COLORS.SELECTED; opacity = 1; 
-                    } 
-                    else if (isManualNap) { 
-                        // Il NAP manuale sovrascrive tutto tranne la nazione selezionata
-                        color = COLORS.NAP; opacity = 1; 
-                    }
-                    else if (isDirAlly) { 
-                        color = COLORS.ALLY_DIRECT; opacity = 1; 
-                    }
-                    else if (isWar) { 
-                        color = COLORS.WAR_DIRECT; opacity = 1; 
-                    }
-                    else if (isEnemyAlly && isIndirAlly && isExtended) { 
-                        color = COLORS.BORDERLINE; opacity = 1; 
-                    }
-                    else if (isEnemyAlly) { 
-                        color = COLORS.WAR_INDIRECT; opacity = 1; 
-                    }
-                    else if (isIndirAlly && isExtended) { 
-                        color = COLORS.ALLY_INDIRECT; opacity = 1; 
-                    }
-                    else { 
-                        color = COLORS.DEFAULT_LAND; opacity = 0.9; 
-                    }
+                    if (cId === selectedCountryId) { color = COLORS.SELECTED; opacity = 1; } 
+                    else if (isManualNap) { color = COLORS.NAP; opacity = 1; }
+                    else if (directAllies.includes(cId)) { color = COLORS.ALLY_DIRECT; opacity = 1; }
+                    else if (directWars.includes(cId)) { color = COLORS.WAR_DIRECT; opacity = 1; }
+                    else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { color = COLORS.BORDERLINE; opacity = 1; }
+                    else if (enemyAllies.includes(cId)) { color = COLORS.WAR_INDIRECT; opacity = 1; }
+                    else if (indirectAllies.includes(cId) && isExtended) { color = COLORS.ALLY_INDIRECT; opacity = 1; }
+                    else { color = COLORS.DEFAULT_LAND; opacity = 0.9; }
                 }
-                return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.5)", weight: 0.8 };
+                return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.4)", weight: 0.5 };
             },
             onEachFeature: (f, layer) => {
                 layer.on('click', (e) => {
@@ -236,22 +273,24 @@
         }).addTo(map);
 
         layers.nationalBorders = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId), {
-            style: { color: "rgba(255,255,255,0.7)", weight: 2, opacity: 1, interactive: false }
+            style: { color: "rgba(255,255,255,0.6)", weight: 1.5, interactive: false }
         }).addTo(map);
 
         layers.coastlines = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b), {
-            style: { color: "#ffffff", weight: 1.5, opacity: 0.9, interactive: false }
+            style: { color: "#ffffff", weight: 1, interactive: false }
         }).addTo(map);
 
         layers.labels.clearLayers();
-        labelsData.forEach(l => {
-            if (l.coordinates) {
-                L.marker([l.coordinates[1], l.coordinates[0]], {
-                    icon: L.divIcon({ className: 'nation-label', html: `<span class="nation-name">${l.properties.countryName}</span>` }),
-                    interactive: false
-                }).addTo(layers.labels);
-            }
-        });
+        if (showLabels) {
+            labelsData.forEach(l => {
+                if (l.coordinates) {
+                    L.marker([l.coordinates[1], l.coordinates[0]], {
+                        icon: L.divIcon({ className: 'nation-label', html: `<span class="nation-name">${l.properties.countryName}</span>` }),
+                        interactive: false
+                    }).addTo(layers.labels);
+                }
+            });
+        }
     }
 
     function popolaListe() {
@@ -265,20 +304,18 @@
     }
 
     function aggiungiNap() {
-        const nomeCercato = document.getElementById('napInput').value;
-        const found = nazioniGlobal.find(n => n.name === nomeCercato);
+        const val = document.getElementById('napInput').value;
+        const found = nazioniGlobal.find(n => n.name === val);
         if (found && !customNaps.includes(found._id)) {
             customNaps.push(found._id);
             document.getElementById('napInput').value = ''; 
-            aggiornaListaNap();
-            renderMap();
+            aggiornaListaNap(); renderMap();
         }
     }
 
     function rimuoviNap(id) {
         customNaps = customNaps.filter(n => n !== id);
-        aggiornaListaNap();
-        renderMap();
+        aggiornaListaNap(); renderMap();
     }
 
     function aggiornaListaNap() {
@@ -286,24 +323,19 @@
         container.innerHTML = "";
         customNaps.forEach(id => {
             const n = nazioniGlobal.find(x => x._id === id);
-            if (n) container.innerHTML += `<div class="nap-item">${n.name} <span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
+            if (n) container.innerHTML += `<div class="nap-item"><span>${n.name}</span> <span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
         });
     }
 
     function cercaNazione() {
-        const test = document.getElementById('cercaInput').value.toLowerCase().trim();
-        const found = nazioniGlobal.find(n => n.name.toLowerCase() === test) || nazioniGlobal.find(n => n.name.toLowerCase().includes(test));
-        if (found) { 
-            selectedCountryId = found._id; 
-            document.getElementById('cercaInput').value = found.name;
-            renderMap(); 
-        }
+        const val = document.getElementById('cercaInput').value.toLowerCase().trim();
+        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
+        if (found) { selectedCountryId = found._id; document.getElementById('cercaInput').value = found.name; renderMap(); }
     }
 
     function resetDiplomazia() {
         selectedCountryId = null; customNaps = []; 
         document.getElementById('cercaInput').value = '';
-        document.getElementById('napInput').value = '';
         document.getElementById('checkExtended').checked = false;
         aggiornaListaNap(); renderMap();
     }
