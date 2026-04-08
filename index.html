@@ -46,7 +46,7 @@
     <div class="panel">
         <strong style="color: #00d4ff;">WARERA DIPLOMACY OS</strong>
         <div style="margin-top: 10px;">
-            <input type="text" id="cercaInput" list="nazioniList" placeholder="Cerca nazione...">
+            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation...">
             <button onclick="cercaNazione()">SEARCH</button>
             <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
         </div>
@@ -92,8 +92,8 @@
         ALLY_INDIRECT: "#145a32",
         BORDERLINE: "#ff9100",
         NAP: "#00d4ff",
-        DEFAULT_LAND: "#4a4e5a",      // Grigio fumo chiaro (quando c'è selezione)
-        NEUTRAL_UNSELECTED: "#3a3d46" // Grigio ardesia (mappa a riposo)
+        DEFAULT_LAND: "#4a4e5a",
+        NEUTRAL_UNSELECTED: "#3a3d46"
     };
 
     function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
@@ -106,12 +106,11 @@
         }
         legendBox.innerHTML = `
             <div class="legend-item"><div class="dot" style="background: ${COLORS.SELECTED};"></div> SELECTED</div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div> MANUAL NAP (PRIORITY)</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_DIRECT};"></div> DIRECT WAR</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div> ENEMY ALLY</div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div> INDIRECT ENEMY</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_DIRECT};"></div> DIRECT ALLY</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_INDIRECT};"></div> INDIRECT ALLY</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.BORDERLINE};"></div> BORDERLINE</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div> MANUAL NAP</div>
             <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid #fff;"></div> NEUTRAL LAND</div>
         `;
     }
@@ -196,15 +195,34 @@
                     const isDirAlly = directAllies.includes(cId);
                     const isIndirAlly = indirectAllies.includes(cId);
                     const isEnemyAlly = enemyAllies.includes(cId);
+                    const isManualNap = customNaps.includes(cId);
 
-                    if (cId === selectedCountryId) { color = COLORS.SELECTED; opacity = 1; }
-                    else if (isWar) { color = COLORS.WAR_DIRECT; opacity = 1; }
-                    else if (isDirAlly) { color = COLORS.ALLY_DIRECT; opacity = 1; }
-                    else if (isEnemyAlly && isIndirAlly && isExtended) { color = COLORS.BORDERLINE; opacity = 1; }
-                    else if (isEnemyAlly) { color = COLORS.WAR_INDIRECT; opacity = 1; }
-                    else if (isIndirAlly && isExtended) { color = COLORS.ALLY_INDIRECT; opacity = 1; }
-                    else if (customNaps.includes(cId)) { color = COLORS.NAP; opacity = 0.9; }
-                    else { color = COLORS.DEFAULT_LAND; opacity = 0.9; }
+                    // --- RIGID PRIORITY LOGIC ---
+                    if (cId === selectedCountryId) { 
+                        color = COLORS.SELECTED; opacity = 1; 
+                    } 
+                    else if (isManualNap) { 
+                        // Il NAP manuale sovrascrive tutto tranne la nazione selezionata
+                        color = COLORS.NAP; opacity = 1; 
+                    }
+                    else if (isDirAlly) { 
+                        color = COLORS.ALLY_DIRECT; opacity = 1; 
+                    }
+                    else if (isWar) { 
+                        color = COLORS.WAR_DIRECT; opacity = 1; 
+                    }
+                    else if (isEnemyAlly && isIndirAlly && isExtended) { 
+                        color = COLORS.BORDERLINE; opacity = 1; 
+                    }
+                    else if (isEnemyAlly) { 
+                        color = COLORS.WAR_INDIRECT; opacity = 1; 
+                    }
+                    else if (isIndirAlly && isExtended) { 
+                        color = COLORS.ALLY_INDIRECT; opacity = 1; 
+                    }
+                    else { 
+                        color = COLORS.DEFAULT_LAND; opacity = 0.9; 
+                    }
                 }
                 return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.5)", weight: 0.8 };
             },
