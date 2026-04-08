@@ -142,7 +142,6 @@
             <div class="legend-item"><div class="dot" style="background: #ffcc00;"></div> SELECTED</div>
             <div class="legend-item"><div class="dot" style="background: #ff0000;"></div> ACTIVE WAR (HOT ZONE)</div>`;
         
-        // La voce compare SOLO se extended è true
         if (isExtended) {
             html += `<div class="legend-item"><div class="dot" style="background: #cc7a00;"></div> EXTENDED ALLY OF ENEMY + MINE</div>`;
         }
@@ -216,12 +215,13 @@
         if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
         if (layers.coastlines) map.removeLayer(layers.coastlines);
 
-        let target = null, allySet = [], enemyAllySet = [], directWars = [];
+        let target = null, allySet = [], enemyAllySet = [], directWars = [], directAllies = [];
         if (selectedCountryId) {
             target = nazioniGlobal.find(n => n._id === selectedCountryId);
             if (target) {
                 directWars = target.warsWith || [];
-                allySet = isExtended ? getExtendedAllies(selectedCountryId) : (target.allies || []);
+                directAllies = target.allies || [];
+                allySet = isExtended ? getExtendedAllies(selectedCountryId) : directAllies;
                 enemyAllySet = getEnemyAllies(selectedCountryId);
             }
         }
@@ -236,15 +236,19 @@
 
                 if (selectedCountryId && target) {
                     const isDirectEnemy = directWars.includes(cId);
-                    const isAlly = allySet.includes(cId);
+                    const isMyDirectAlly = directAllies.includes(cId);
+                    const isExtendedAlly = allySet.includes(cId);
                     const isEnemyAlly = enemyAllySet.includes(cId);
 
                     if (cId === selectedCountryId) { color = "#ffcc00"; opacity = 1; } 
                     else if (isDirectEnemy) { color = SCALES.ENEMIES[tone]; opacity = 1.0; }
-                    else if (isEnemyAlly && isAlly && isExtended) { color = SCALES.CONTRASTED[tone]; opacity = 0.8; }
+                    // CORREZIONE CRITICA: Se è un mio alleato diretto, deve essere SEMPRE verde
+                    else if (isMyDirectAlly) { color = SCALES.ALLIES[tone]; opacity = 0.8; }
+                    // Logica Extended: mostra contrasto solo se NON è un alleato diretto
+                    else if (isEnemyAlly && isExtendedAlly && isExtended) { color = SCALES.CONTRASTED[tone]; opacity = 0.8; }
                     else if (isEnemyAlly) { color = SCALES.ENEMY_ALLIES[tone]; opacity = 0.8; }
                     else if (customNaps.includes(cId)) { color = SCALES.NAPS[tone]; opacity = 0.8; }
-                    else if (isAlly) { color = SCALES.ALLIES[tone]; opacity = 0.7; }
+                    else if (isExtendedAlly) { color = SCALES.ALLIES[tone]; opacity = 0.7; }
                     else { color = "#2e1a33"; opacity = 0.35; }
                 }
                 return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.3)", weight: 0.5 };
