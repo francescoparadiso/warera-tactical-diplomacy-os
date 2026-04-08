@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>WarEra Tactical OS - Deep Purple Contrast</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; background: #000 !important; }
+        .overlay { position: absolute; z-index: 1000; pointer-events: none; }
+        .panel { background: rgba(10, 10, 10, 0.95); border: 1px solid #333; padding: 12px; border-radius: 6px; pointer-events: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #top-left { top: 15px; left: 15px; display: flex; flex-direction: column; gap: 10px; }
+        #top-right { top: 15px; right: 15px; width: 250px; }
+        input, select, button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        button { cursor: pointer; background: #0062ff; border: none; font-weight: bold; margin-top: 5px; text-transform: uppercase; }
+        button:hover { background: #0052d6; }
+        .btn-reset { background: #333; }
+        .nation-label { background: transparent !important; border: none !important; pointer-events: none !important; }
+        .nation-name { font-size: 10px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 3px #000; color: #fff; pointer-events: none; }
+        .nap-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 5px 8px; margin-top: 5px; border-left: 3px solid #00d4ff; font-size: 11px; }
+        .remove-nap { color: #ff4747; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="top-left" class="overlay">
+    <div class="panel">
+        <strong style="color: #00d4ff;">WARERA TACTICAL OS</strong>
+        <div style="margin-top: 10px;">
+            <input type="text" id="cercaInput" placeholder="Cerca nazione...">
+            <button onclick="cercaNazione()">ANALIZZA</button>
+            <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
+        </div>
+    </div>
+</div>
+
+<div id="top-right" class="overlay">
+    <div class="panel">
+        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (AZZURRO)</strong>
+        <select id="napSelect" style="margin-top: 8px;"><option value="">Caricamento...</option></select>
+        <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000;">AGGIUNGI</button>
+        <div id="napList" style="margin-top: 10px;"></div>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    let map, nazioniGlobal = [], mapDataGlobal = null;
+    let selectedCountryId = null;
+    let customNaps = [];
+    let layers = { regions: null, labels: L.layerGroup() };
+
+    const SCALES = {
+        ALLIES: ["#2ecc71", "#27ae60", "#1e8449", "#145a32"],
+        ENEMIES: ["#ff3737", "#c0392b", "#922b21", "#641e16"],
+        NAPS: ["#00d4ff", "#0099cc", "#0077aa", "#005588"],
+        // VIOLA MOLTO DIFFERENZIATI: dal chiaro al quasi nero
+        NEUTRALS: ["#d7bde2", "#9b59b6", "#6c3483", "#2e1a33"] 
+    };
+
+    async function init() {
+        map = L.map('map', { center: [20, 0], zoom: 3, zoomControl: false, attributionControl: false });
+        layers.labels.addTo(map);
+        await refreshData();
+    }
+
+    async function refreshData() {
+        try {
+            const [resN, resM] = await Promise.all([
+                fetch('https://api2.warera.io/trpc/country.getAllCountries'),
+                fetch('https://api4.warera.io/trpc/map.getMapData')
+            ]);
+            nazioniGlobal = (await resN.json()).result.data;
+            mapDataGlobal = (await resM.json()).result.data;
+            popolaSelect();
+            renderMap();
+        } catch (e) { console.error(e); }
+    }
+
+    function getToneIndex(id) {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) {
+            hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash % 4);
+    }
+
+    function renderMap() {
+        if (!mapDataGlobal) return;
+
+        const topoData = mapDataGlobal.map;
+        const labelsSource = mapDataGlobal.countryLabels || (topoData.objects ? topoData.objects.countryLabels : null);
+        const labelsData = labelsSource ? (labelsSource.geometries || []) : [];
+
+        if (layers.regions) map.removeLayer(layers.regions);
+
+        layers.regions = L.geoJson(topojson.feature(topoData, topoData.objects.regions), {
+            style: (f) => {
+                const cId = f.properties.countryId;
+                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
+                const target = selectedCountryId ? nazioniGlobal.find(n => n._id === selectedCountryId) : null;
+                const tone = getToneIndex(cId);
+
+                let baseColor = styleInfo ? styleInfo.properties.strokeColor : "#151515";
+                let opacity = 0.6;
+                let weight = 0.5;
+                let strokeColor = "rgba(255,255,255,0.2)";
+
+                if (selectedCountryId) {
+                    if (cId === selectedCountryId) {
+                        baseColor = "#ffcc00"; opacity = 1; strokeColor = "#ffffff"; weight = 4;
+                    } else if (customNaps.includes(cId)) {
+                        baseColor = SCALES.NAPS[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
+                    } else if (target && target.allies && target.allies.includes(cId)) {
+                        baseColor = SCALES.ALLIES[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
+                    } else if (target && target.warsWith && target.warsWith.includes(cId)) {
+                        baseColor = SCALES.ENEMIES[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
+                    } else {
+                        // NEUTRALI VIOLA AD ALTO CONTRASTO
+                        baseColor = SCALES.NEUTRALS[tone]; 
+                        opacity = 0.45; weight = 0.6; strokeColor = "rgba(0,0,0,0.4)";
+                    }
+                }
+
+                return { fillColor: baseColor, fillOpacity: opacity, color: strokeColor, weight: weight };
+            },
+            onEachFeature: (f, layer) => {
+                layer.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    selectedCountryId = (selectedCountryId === f.properties.countryId) ? null : f.properties.countryId;
+                    renderMap();
+                });
+            }
+        }).addTo(map);
+
+        layers.labels.clearLayers();
+        labelsData.forEach(l => {
+            if (l.coordinates) {
+                L.marker([l.coordinates[1], l.coordinates[0]], {
+                    icon: L.divIcon({
+                        className: 'nation-label',
+                        html: `<span class="nation-name">${l.properties.countryName}</span>`
+                    }),
+                    interactive: false
+                }).addTo(layers.labels);
+            }
+        });
+    }
+
+    // --- UI HELPERS ---
+    function popolaSelect() {
+        const select = document.getElementById('napSelect');
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">-- Seleziona --</option>';
+        [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n._id; opt.textContent = n.name;
+            select.appendChild(opt);
+        });
+        select.value = currentVal;
+    }
+
+    function aggiungiNap() {
+        const id = document.getElementById('napSelect').value;
+        if (id && !customNaps.includes(id)) {
+            customNaps.push(id);
+            aggiornaListaNap();
+            renderMap();
+        }
+    }
+
+    function rimuoviNap(id) {
+        customNaps = customNaps.filter(n => n !== id);
+        aggiornaListaNap();
+        renderMap();
+    }
+
+    function aggiornaListaNap() {
+        const container = document.getElementById('napList');
+        container.innerHTML = "";
+        customNaps.forEach(id => {
+            const n = nazioniGlobal.find(x => x._id === id);
+            if (n) container.innerHTML += `<div class="nap-item">${n.name} <span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
+        });
+    }
+
+    function cercaNazione() {
+        const test = document.getElementById('cercaInput').value.toLowerCase().trim();
+        const found = nazioniGlobal.find(n => n.name.toLowerCase().includes(test));
+        if (found) { selectedCountryId = found._id; renderMap(); }
+    }
+
+    function resetDiplomazia() {
+        selectedCountryId = null; customNaps = []; aggiornaListaNap(); renderMap();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
