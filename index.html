@@ -2,36 +2,93 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>WarEra Diplomacy view</title>
+    <title>WarEra Diplomacy OS - Strategic Intelligence Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
     <style>
         body { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #000 !important; }
+        
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            background: #02050a !important; 
+        }
+        
+        /* Overlay e Pannelli */
         .overlay { position: absolute; z-index: 1000; pointer-events: none; }
         .panel { background: rgba(10, 10, 10, 0.95); border: 1px solid #333; padding: 12px; border-radius: 6px; pointer-events: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        
         #top-left { top: 15px; left: 15px; display: flex; flex-direction: column; gap: 10px; }
         #top-right { top: 15px; right: 15px; width: 250px; }
-        input, select, button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        
+        /* Toggle Switch Moderno */
+        .options-menu { margin-top: 10px; border-top: 1px solid #333; padding-top: 12px; }
+        .switch-container { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+        .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+        
+        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { 
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444;
+        }
+        .slider:before { 
+            position: absolute; content: ""; height: 12px; width: 12px; left: 2px; bottom: 2px; 
+            background-color: white; transition: .3s; border-radius: 50%; 
+        }
+        input:checked + .slider { background-color: #0062ff; border-color: #00d4ff; }
+        input:checked + .slider:before { transform: translateX(16px); background-color: #fff; }
+
+        /* Legenda */
+        #legend-container { bottom: 25px; left: 15px; display: flex; flex-direction: column; gap: 8px; transition: all 0.3s ease; }
+        .legend-content { transition: opacity 0.3s ease, transform 0.3s ease; transform-origin: bottom left; }
+        .legend-content.hidden { opacity: 0; transform: scale(0.8) translateY(20px); pointer-events: none; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-bottom: 5px; text-transform: uppercase; font-weight: bold; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #fff; }
+        
+        .toggle-btn { 
+            width: 30px; height: 30px; background: #1a1a1a; border: 1px solid #444; color: #00d4ff; 
+            border-radius: 50%; cursor: pointer; font-weight: bold; display: flex; align-items: center; 
+            justify-content: center; pointer-events: auto; box-shadow: 0 2px 5px #000;
+        }
+
+        /* Input e Bottoni */
+        input[type="text"], button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
         button { cursor: pointer; background: #0062ff; border: none; font-weight: bold; margin-top: 5px; text-transform: uppercase; }
         button:hover { background: #0052d6; }
         .btn-reset { background: #333; }
+        
+        /* Labels Nazioni */
         .nation-label { background: transparent !important; border: none !important; pointer-events: none !important; }
         .nation-name { font-size: 10px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 3px #000; color: #fff; pointer-events: none; }
+        
+        /* Liste NAP */
         .nap-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 5px 8px; margin-top: 5px; border-left: 3px solid #00d4ff; font-size: 11px; }
-        .remove-nap { color: #ff4747; cursor: pointer; }
+        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
+<datalist id="nazioniList"></datalist>
+
 <div id="top-left" class="overlay">
     <div class="panel">
-        <strong style="color: #00d4ff;">WARERA DIPLOMACY VIEW</strong>
+        <strong style="color: #00d4ff;">WARERA DIPLOMACY OS</strong>
         <div style="margin-top: 10px;">
-            <input type="text" id="cercaInput" placeholder="Cerca nazione...">
+            <input type="text" id="cercaInput" list="nazioniList" placeholder="Cerca nazione...">
             <button onclick="cercaNazione()">SEARCH</button>
             <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
+        </div>
+        
+        <div class="options-menu">
+            <label class="switch-container">
+                <span class="switch-label">Extended Intelligence</span>
+                <div class="switch">
+                    <input type="checkbox" id="checkExtended" onchange="renderMap()">
+                    <span class="slider"></span>
+                </div>
+            </label>
         </div>
     </div>
 </div>
@@ -39,10 +96,16 @@
 <div id="top-right" class="overlay">
     <div class="panel">
         <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (LIGHTBLUE)</strong>
-        <select id="napSelect" style="margin-top: 8px;"><option value="">loading...</option></select>
+        <input type="text" id="napInput" list="nazioniList" style="margin-top: 8px;" placeholder="Scrivi nazione...">
         <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000;">ADD</button>
         <div id="napList" style="margin-top: 10px;"></div>
     </div>
+</div>
+
+<div id="legend-container" class="overlay">
+    <div id="dynamic-legend" class="panel legend-content">
+        </div>
+    <div class="toggle-btn" onclick="toggleLegend()">i</div>
 </div>
 
 <div id="map"></div>
@@ -51,15 +114,47 @@
     let map, nazioniGlobal = [], mapDataGlobal = null;
     let selectedCountryId = null;
     let customNaps = [];
-    let layers = { regions: null, labels: L.layerGroup() };
+    let layers = { regions: null, nationalBorders: null, coastlines: null, labels: L.layerGroup() };
 
     const SCALES = {
         ALLIES: ["#2ecc71", "#27ae60", "#1e8449", "#145a32"],
-        ENEMIES: ["#ff3737", "#c0392b", "#922b21", "#641e16"],
+        ENEMIES: ["#ff0000", "#e60000", "#cc0000", "#b30000"],
         NAPS: ["#00d4ff", "#0099cc", "#0077aa", "#005588"],
-        // VIOLA MOLTO DIFFERENZIATI: dal chiaro al quasi nero
-        NEUTRALS: ["#d7bde2", "#9b59b6", "#6c3483", "#2e1a33"] 
+        CONTRASTED: ["#cc7a00", "#b36b00", "#995c00", "#804d00"],
+        ENEMY_ALLIES: ["#8b0000", "#700000", "#550000", "#400000"]
     };
+
+    function toggleLegend() {
+        document.getElementById('dynamic-legend').classList.toggle('hidden');
+    }
+
+    function updateDynamicLegend() {
+        const isExtended = document.getElementById('checkExtended').checked;
+        const legendBox = document.getElementById('dynamic-legend');
+        const allyType = isExtended ? "EXTENDED" : "DIRECT";
+
+        if (!selectedCountryId) {
+            legendBox.innerHTML = `<div class="legend-item"><div class="dot" style="background: #555;"></div> NO SELECTION</div>`;
+            return;
+        }
+
+        let html = `
+            <div class="legend-item"><div class="dot" style="background: #ffcc00;"></div> SELECTED</div>
+            <div class="legend-item"><div class="dot" style="background: #ff0000;"></div> ACTIVE WAR (HOT ZONE)</div>`;
+        
+        // La voce compare SOLO se extended è true
+        if (isExtended) {
+            html += `<div class="legend-item"><div class="dot" style="background: #cc7a00;"></div> EXTENDED ALLY OF ENEMY + MINE</div>`;
+        }
+
+        html += `
+            <div class="legend-item"><div class="dot" style="background: #8b0000;"></div> ENEMY ALLY (POTENTIAL THREAT)</div>
+            <div class="legend-item"><div class="dot" style="background: #2ecc71;"></div> ALLY (${allyType})</div>
+            <div class="legend-item"><div class="dot" style="background: #00d4ff;"></div> MANUAL NAP</div>
+        `;
+        
+        legendBox.innerHTML = html;
+    }
 
     async function init() {
         map = L.map('map', { center: [20, 0], zoom: 3, zoomControl: false, attributionControl: false });
@@ -75,57 +170,84 @@
             ]);
             nazioniGlobal = (await resN.json()).result.data;
             mapDataGlobal = (await resM.json()).result.data;
-            popolaSelect();
+            popolaListe();
             renderMap();
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Error fetching data:", e); }
     }
 
     function getToneIndex(id) {
         let hash = 0;
-        for (let i = 0; i < id.length; i++) {
-            hash = id.charCodeAt(i) + ((hash << 5) - hash);
-        }
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
         return Math.abs(hash % 4);
+    }
+
+    function getExtendedAllies(targetId) {
+        const target = nazioniGlobal.find(n => n._id === targetId);
+        if (!target || !target.allies) return [];
+        let extended = new Set(target.allies);
+        target.allies.forEach(allyId => {
+            const allyData = nazioniGlobal.find(n => n._id === allyId);
+            if (allyData && allyData.allies) allyData.allies.forEach(id => extended.add(id));
+        });
+        return Array.from(extended);
+    }
+
+    function getEnemyAllies(targetId) {
+        const target = nazioniGlobal.find(n => n._id === targetId);
+        if (!target || !target.warsWith) return [];
+        let eAllies = new Set();
+        target.warsWith.forEach(enemyId => {
+            const enemyData = nazioniGlobal.find(n => n._id === enemyId);
+            if (enemyData && enemyData.allies) enemyData.allies.forEach(id => eAllies.add(id));
+        });
+        return Array.from(eAllies);
     }
 
     function renderMap() {
         if (!mapDataGlobal) return;
+        updateDynamicLegend();
 
         const topoData = mapDataGlobal.map;
         const labelsSource = mapDataGlobal.countryLabels || (topoData.objects ? topoData.objects.countryLabels : null);
         const labelsData = labelsSource ? (labelsSource.geometries || []) : [];
+        const isExtended = document.getElementById('checkExtended').checked;
 
         if (layers.regions) map.removeLayer(layers.regions);
+        if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
+        if (layers.coastlines) map.removeLayer(layers.coastlines);
+
+        let target = null, allySet = [], enemyAllySet = [], directWars = [];
+        if (selectedCountryId) {
+            target = nazioniGlobal.find(n => n._id === selectedCountryId);
+            if (target) {
+                directWars = target.warsWith || [];
+                allySet = isExtended ? getExtendedAllies(selectedCountryId) : (target.allies || []);
+                enemyAllySet = getEnemyAllies(selectedCountryId);
+            }
+        }
 
         layers.regions = L.geoJson(topojson.feature(topoData, topoData.objects.regions), {
             style: (f) => {
                 const cId = f.properties.countryId;
-                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
-                const target = selectedCountryId ? nazioniGlobal.find(n => n._id === selectedCountryId) : null;
                 const tone = getToneIndex(cId);
-
-                let baseColor = styleInfo ? styleInfo.properties.strokeColor : "#151515";
+                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
+                let color = styleInfo ? styleInfo.properties.strokeColor : "#151515";
                 let opacity = 0.6;
-                let weight = 0.5;
-                let strokeColor = "rgba(255,255,255,0.2)";
 
-                if (selectedCountryId) {
-                    if (cId === selectedCountryId) {
-                        baseColor = "#ffcc00"; opacity = 1; strokeColor = "#ffffff"; weight = 4;
-                    } else if (customNaps.includes(cId)) {
-                        baseColor = SCALES.NAPS[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
-                    } else if (target && target.allies && target.allies.includes(cId)) {
-                        baseColor = SCALES.ALLIES[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
-                    } else if (target && target.warsWith && target.warsWith.includes(cId)) {
-                        baseColor = SCALES.ENEMIES[tone]; opacity = 0.8; strokeColor = "#fff"; weight = 1.2;
-                    } else {
-                        // NEUTRALI VIOLA AD ALTO CONTRASTO
-                        baseColor = SCALES.NEUTRALS[tone]; 
-                        opacity = 0.45; weight = 0.6; strokeColor = "rgba(0,0,0,0.4)";
-                    }
+                if (selectedCountryId && target) {
+                    const isDirectEnemy = directWars.includes(cId);
+                    const isAlly = allySet.includes(cId);
+                    const isEnemyAlly = enemyAllySet.includes(cId);
+
+                    if (cId === selectedCountryId) { color = "#ffcc00"; opacity = 1; } 
+                    else if (isDirectEnemy) { color = SCALES.ENEMIES[tone]; opacity = 1.0; }
+                    else if (isEnemyAlly && isAlly && isExtended) { color = SCALES.CONTRASTED[tone]; opacity = 0.8; }
+                    else if (isEnemyAlly) { color = SCALES.ENEMY_ALLIES[tone]; opacity = 0.8; }
+                    else if (customNaps.includes(cId)) { color = SCALES.NAPS[tone]; opacity = 0.8; }
+                    else if (isAlly) { color = SCALES.ALLIES[tone]; opacity = 0.7; }
+                    else { color = "#2e1a33"; opacity = 0.35; }
                 }
-
-                return { fillColor: baseColor, fillOpacity: opacity, color: strokeColor, weight: weight };
+                return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.3)", weight: 0.5 };
             },
             onEachFeature: (f, layer) => {
                 layer.on('click', (e) => {
@@ -136,37 +258,41 @@
             }
         }).addTo(map);
 
+        layers.nationalBorders = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId), {
+            style: { color: "rgba(255,255,255,0.7)", weight: 2, opacity: 1, interactive: false }
+        }).addTo(map);
+
+        layers.coastlines = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b), {
+            style: { color: "#ffffff", weight: 1.5, opacity: 0.9, interactive: false }
+        }).addTo(map);
+
         layers.labels.clearLayers();
         labelsData.forEach(l => {
             if (l.coordinates) {
                 L.marker([l.coordinates[1], l.coordinates[0]], {
-                    icon: L.divIcon({
-                        className: 'nation-label',
-                        html: `<span class="nation-name">${l.properties.countryName}</span>`
-                    }),
+                    icon: L.divIcon({ className: 'nation-label', html: `<span class="nation-name">${l.properties.countryName}</span>` }),
                     interactive: false
                 }).addTo(layers.labels);
             }
         });
     }
 
-    // --- UI HELPERS ---
-    function popolaSelect() {
-        const select = document.getElementById('napSelect');
-        const currentVal = select.value;
-        select.innerHTML = '<option value="">-- Select --</option>';
+    function popolaListe() {
+        const datalist = document.getElementById('nazioniList');
+        datalist.innerHTML = '';
         [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
             const opt = document.createElement('option');
-            opt.value = n._id; opt.textContent = n.name;
-            select.appendChild(opt);
+            opt.value = n.name;
+            datalist.appendChild(opt);
         });
-        select.value = currentVal;
     }
 
     function aggiungiNap() {
-        const id = document.getElementById('napSelect').value;
-        if (id && !customNaps.includes(id)) {
-            customNaps.push(id);
+        const nomeCercato = document.getElementById('napInput').value;
+        const found = nazioniGlobal.find(n => n.name === nomeCercato);
+        if (found && !customNaps.includes(found._id)) {
+            customNaps.push(found._id);
+            document.getElementById('napInput').value = ''; 
             aggiornaListaNap();
             renderMap();
         }
@@ -189,12 +315,20 @@
 
     function cercaNazione() {
         const test = document.getElementById('cercaInput').value.toLowerCase().trim();
-        const found = nazioniGlobal.find(n => n.name.toLowerCase().includes(test));
-        if (found) { selectedCountryId = found._id; renderMap(); }
+        const found = nazioniGlobal.find(n => n.name.toLowerCase() === test) || nazioniGlobal.find(n => n.name.toLowerCase().includes(test));
+        if (found) { 
+            selectedCountryId = found._id; 
+            document.getElementById('cercaInput').value = found.name;
+            renderMap(); 
+        }
     }
 
     function resetDiplomazia() {
-        selectedCountryId = null; customNaps = []; aggiornaListaNap(); renderMap();
+        selectedCountryId = null; customNaps = []; 
+        document.getElementById('cercaInput').value = '';
+        document.getElementById('napInput').value = '';
+        document.getElementById('checkExtended').checked = false;
+        aggiornaListaNap(); renderMap();
     }
 
     window.onload = init;
