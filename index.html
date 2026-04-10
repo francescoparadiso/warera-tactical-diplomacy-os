@@ -3,106 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>WarEra Diplomacy OS - Strategic Intelligence Pro</title>
+    <title>WarEra Diplomacy OS - Infinite Globe</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #010409 !important; }
-        
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0; 
+            background: #000; 
+            color: white; 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            overflow: hidden; 
+        }
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            background: #000000 !important; 
+        }
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s;
+        }
+        .loader {
+            text-align: center;
+            color: #00d4ff;
+        }
+        .loader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #333;
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            bottom: 110px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: rgba(20,20,20,0.95);
+            border-left: 4px solid #00d4ff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+        .toast.error { border-left-color: #ff4747; }
+        .toast.success { border-left-color: #2ecc71; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         /* UI Base */
-        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+        .overlay { 
+            position: absolute; 
+            z-index: 1000; 
+            pointer-events: none; 
+            width: auto; 
+        }
         .panel { 
             background: rgba(10, 10, 10, 0.95); 
             border: 1px solid #333; 
-            padding: 12px; 
-            border-radius: 8px; 
+            padding: 16px; 
+            border-radius: 12px; 
             pointer-events: auto; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
         }
-
-        /* Desktop Layout */
-        #top-left { top: 15px; left: 15px; width: 280px; }
-        #top-right { top: 15px; right: 15px; width: 280px; }
-        #legend-container { bottom: 25px; left: 15px; }
-
-        /* Responsive Logic */
+        #top-left { top: 20px; left: 20px; width: 320px; }
+        #top-right { top: 20px; right: 20px; width: 320px; }
+        #legend-container { bottom: 30px; left: 20px; }
+        #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
+        .stats-content {
+            display: flex;
+            gap: 15px;
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
         @media (max-width: 768px) {
-            #top-left, #top-right { 
-                left: 10px; 
-                right: 10px; 
-                width: calc(100% - 20px); 
-                max-width: none;
-            }
+            #top-left, #top-right { left: 10px; right: 10px; width: calc(100% - 20px); max-width: none; }
             #top-left { top: 10px; }
-            #top-right { 
-                top: auto; 
-                bottom: 80px; /* Sopra la legenda */
-                max-height: 30vh;
-                overflow-y: auto;
-            }
-            #legend-container { bottom: 10px; left: 10px; width: calc(100% - 20px); }
-            
-            .switch-label { font-size: 13px; }
-            input[type="text"], button { padding: 12px; font-size: 14px; } /* Più grandi per le dita */
+            #top-right { top: auto; bottom: 80px; max-height: 35vh; overflow-y: auto; }
+            #legend-container { bottom: 10px; left: 10px; width: auto; }
+            #stats-bar { bottom: 10px; right: 10px; }
+            .stats-content { gap: 10px; }
+            .switch-label { font-size: 12px; }
+            input[type="text"], button { padding: 12px; font-size: 14px; }
+            .panel { padding: 12px; }
         }
-
-        .options-menu { margin-top: 10px; border-top: 1px solid #333; padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
-        .switch-container { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; padding: 4px 0; }
-        .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
-        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .options-menu { 
+            margin-top: 16px; 
+            border-top: 1px solid #333; 
+            padding-top: 16px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+        }
+        .switch-container { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            gap: 10px; 
+            cursor: pointer; 
+            padding: 6px 0; 
+        }
+        .switch-label { 
+            font-size: 11px; 
+            color: #aaa; 
+            text-transform: uppercase; 
+            font-weight: 600; 
+            letter-spacing: 0.5px; 
+        }
+        .switch { 
+            position: relative; 
+            display: inline-block; 
+            width: 44px; 
+            height: 24px; 
+        }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
-        input:checked + .slider { background-color: #0062ff; border-color: #00d4ff; }
-        input:checked + .slider:before { transform: translateX(18px); }
-
-        .legend-content { transition: opacity 0.3s ease, transform 0.3s ease; transform-origin: bottom left; margin-bottom: 8px;}
-        .legend-content.hidden { opacity: 0; transform: scale(0.9) translateY(10px); pointer-events: none; display: none; }
-        .legend-item { display: flex; align-items: center; gap: 10px; font-size: 11px; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; }
-        .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff; flex-shrink: 0; }
-        
-        .toggle-btn { 
-            width: 40px; height: 40px; background: #1a1a1a; border: 1px solid #444; 
-            color: #00d4ff; border-radius: 50%; cursor: pointer; font-size: 18px;
-            display: flex; align-items: center; justify-content: center; pointer-events: auto; 
+        .slider { 
+            position: absolute; 
+            cursor: pointer; 
+            top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: #333; 
+            transition: .3s; 
+            border-radius: 34px; 
+            border: 1px solid #444; 
         }
-
-        input[type="text"], button { background: #1a1a1a; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
-        button { cursor: pointer; background: #0062ff; border: none; font-weight: bold; margin-top: 6px; text-transform: uppercase; }
+        .slider:before { 
+            position: absolute; 
+            content: ""; 
+            height: 18px; 
+            width: 18px; 
+            left: 3px; 
+            bottom: 2px; 
+            background-color: white; 
+            transition: .3s; 
+            border-radius: 50%; 
+        }
+        input:checked + .slider { 
+            background: linear-gradient(135deg, #0062ff, #00d4ff); 
+            border-color: #00d4ff; 
+        }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .legend-content { 
+            transition: opacity 0.3s ease, transform 0.3s ease; 
+            transform-origin: bottom left; 
+            margin-bottom: 12px;
+            min-width: 200px;
+        }
+        .legend-content.hidden { 
+            opacity: 0; 
+            transform: scale(0.9) translateY(10px); 
+            pointer-events: none; 
+            display: none; 
+        }
+        .legend-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            font-size: 11px; 
+            margin-bottom: 8px; 
+            text-transform: uppercase; 
+            font-weight: 600; 
+        }
+        .dot { 
+            width: 16px; 
+            height: 16px; 
+            border-radius: 50%; 
+            border: 2px solid rgba(255,255,255,0.3); 
+            flex-shrink: 0; 
+        }
+        .toggle-btn { 
+            width: 44px; 
+            height: 44px; 
+            background: rgba(20,20,20,0.95); 
+            border: 1px solid #444; 
+            color: #00d4ff; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            font-size: 20px;
+            font-weight: bold;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover { background: #2a2a2a; border-color: #00d4ff; }
+        input[type="text"], button { 
+            background: #1a1a1a; 
+            border: 1px solid #444; 
+            color: white; 
+            padding: 10px 12px; 
+            border-radius: 8px; 
+            font-size: 13px; 
+            width: 100%; 
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+        input[type="text"]:focus { outline: none; border-color: #00d4ff; background: #222; }
+        button { 
+            cursor: pointer; 
+            background: linear-gradient(135deg, #0062ff, #0088ff);
+            border: none; 
+            font-weight: 600; 
+            margin-top: 6px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,98,255,0.3); }
+        button:active { transform: translateY(0); }
         .btn-reset { background: #333; }
-        
+        .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
         .nation-label { background: transparent !important; border: none !important; pointer-events: none !important; }
-        .nation-name { font-size: 10px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 4px #000; color: #fff; white-space: nowrap; }
-        .nap-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 8px 12px; margin-top: 6px; border-left: 4px solid #00d4ff; border-radius: 4px; font-size: 12px; }
-        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 16px; padding-left: 10px; }
+        .nation-name { 
+            font-size: 10px; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            text-shadow: 0 2px 4px #000, 0 0 10px rgba(0,0,0,0.8); 
+            color: #fff; 
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        .nap-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #1a1a1a; 
+            padding: 10px 14px; 
+            margin-top: 8px; 
+            border-left: 4px solid #00d4ff; 
+            border-radius: 6px; 
+            font-size: 13px;
+            animation: slideIn 0.2s ease;
+        }
+        .remove-nap { 
+            color: #ff4747; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 18px; 
+            padding: 0 4px;
+            transition: transform 0.2s;
+        }
+        .remove-nap:hover { transform: scale(1.2); }
+        .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .section-title strong { font-size: 13px; color: #00d4ff; letter-spacing: 0.5px; }
+        .badge { background: #00d4ff; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
+        .search-container { display: flex; gap: 8px; }
+        .search-container button { margin-top: 0; width: auto; padding: 10px 16px; }
+        .nap-input-container { display: flex; gap: 8px; }
+        .nap-input-container input { flex: 1; }
+        .nap-input-container button { margin-top: 0; width: 80px; background: #00d4ff; color: #000; }
+        #napList { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+        #napList::-webkit-scrollbar { width: 6px; }
+        #napList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
+        #napList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .selected-info { background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2); }
+        .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
     </style>
 </head>
 <body>
 
+<div id="loading-overlay">
+    <div class="loader">
+        <div class="loader-spinner"></div>
+        <div>Loading Strategic Data...</div>
+    </div>
+</div>
+<div id="toast-container"></div>
+
 <datalist id="nazioniList"></datalist>
 
+<!-- Main UI -->
 <div id="top-left" class="overlay">
     <div class="panel">
-        <strong style="color: #00d4ff; font-size: 14px;">WARERA DIPLOMACY OS</strong>
-        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
-            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation...">
-            <div style="display: flex; gap: 5px;">
-                <button onclick="cercaNazione()">SEARCH</button>
-                <button class="btn-reset" onclick="resetDiplomazia()">RESET</button>
-            </div>
+        <div class="section-title">
+            <strong>⚔️ WARERA DIPLOMACY OS</strong>
+            <span class="badge">v2.0</span>
+        </div>
+        <div id="selected-display" class="selected-info" style="display: none;">
+            <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
+            <div class="selected-name" id="selected-name-display"></div>
+        </div>
+        <div class="search-container">
+            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
+            <button onclick="cercaNazione()">🔍</button>
+            <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
         </div>
         <div class="options-menu">
             <label class="switch-container">
-                <span class="switch-label">Extended Diplomacy</span>
+                <span class="switch-label">🌐 Extended Diplomacy</span>
                 <div class="switch">
                     <input type="checkbox" id="checkExtended" onchange="renderMap()">
                     <span class="slider"></span>
                 </div>
             </label>
             <label class="switch-container">
-                <span class="switch-label">Show Nation Names</span>
+                <span class="switch-label">🏷️ Show Nation Names</span>
                 <div class="switch">
                     <input type="checkbox" id="checkLabels" checked onchange="renderMap()">
                     <span class="slider"></span>
@@ -114,28 +336,54 @@
 
 <div id="top-right" class="overlay">
     <div class="panel">
-        <strong style="font-size: 12px; color: #00d4ff;">MANUAL NAP (PRIORITY)</strong>
-        <div style="display: flex; gap: 5px; margin-top: 8px;">
-            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP...">
-            <button onclick="aggiungiNap()" style="background: #00d4ff; color: #000; margin-top: 0; width: 80px;">ADD</button>
+        <div class="section-title">
+            <strong>🤝 MANUAL NAP (PRIORITY)</strong>
+            <span class="badge" id="nap-count">0</span>
         </div>
-        <div id="napList" style="margin-top: 5px;"></div>
+        <div class="nap-input-container">
+            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
+            <button onclick="aggiungiNap()">ADD</button>
+        </div>
+        <div id="napList">
+            <div class="empty-state">No manual NAPs set</div>
+        </div>
     </div>
 </div>
 
 <div id="legend-container" class="overlay">
     <div id="dynamic-legend" class="panel legend-content hidden"></div>
-    <div class="toggle-btn" onclick="toggleLegend()">i</div>
+    <div class="toggle-btn" onclick="toggleLegend()">ℹ️</div>
+</div>
+
+<div id="stats-bar" class="overlay">
+    <div class="panel">
+        <div class="stats-content">
+            <div class="stat-item"><span>ALLIES</span><span class="stat-value" id="stats-allies">0</span></div>
+            <div class="stat-item"><span>WARS</span><span class="stat-value" id="stats-wars">0</span></div>
+            <div class="stat-item"><span>NAPS</span><span class="stat-value" id="stats-naps">0</span></div>
+        </div>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    let map, nazioniGlobal = [], mapDataGlobal = null;
+    // ---------- GLOBAL STATE ----------
+    let map;
+    let nazioniGlobal = [];
+    let mapDataGlobal = null;
     let selectedCountryId = null;
     let customNaps = [];
-    let layers = { regions: null, nationalBorders: null, coastlines: null, labels: L.layerGroup() };
-
+    let layers = { 
+        regions: null, 
+        nationalBorders: null, 
+        coastlines: null, 
+        labels: L.layerGroup() 
+    };
+    
+    const nationMap = new Map(); // Cache for O(1) lookups
+    
+    // Color palette
     const COLORS = {
         SELECTED: "#ffcc00",
         WAR_DIRECT: "#ff0000",
@@ -148,93 +396,174 @@
         NEUTRAL_UNSELECTED: "#3a3d46"
     };
 
-    function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
 
-    function updateDynamicLegend() {
-        const legendBox = document.getElementById('dynamic-legend');
-        if (!selectedCountryId) {
-            legendBox.innerHTML = `<div class="legend-item"><div class="dot" style="background: #555;"></div> NO SELECTION</div>`;
-            return;
+    // ---------- UTILITIES: TOAST & LOADING ----------
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    function showLoading() {
+        document.getElementById('loading-overlay').style.display = 'flex';
+    }
+    function hideLoading() {
+        document.getElementById('loading-overlay').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }, 300);
+    }
+    
+    function toggleLegend() { 
+        document.getElementById('dynamic-legend').classList.toggle('hidden'); 
+    }
+
+    // ---------- GEOJSON OFFSET UTILS (for infinite globe) ----------
+    function offsetCoords(coords, lngOffset) {
+        if (typeof coords[0] === 'number') {
+            // It's a coordinate pair [lng, lat]
+            return [coords[0] + lngOffset, coords[1]];
         }
-        legendBox.innerHTML = `
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.SELECTED};"></div> SELECTED</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div> MANUAL NAP</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_DIRECT};"></div> DIRECT WAR</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div> INDIRECT ENEMY</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_DIRECT};"></div> DIRECT ALLY</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_INDIRECT};"></div> INDIRECT ALLY</div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid #fff;"></div> NEUTRAL</div>
-        `;
+        // Recursively process arrays (rings, polygons, etc.)
+        return coords.map(c => offsetCoords(c, lngOffset));
     }
-
-    async function init() {
-        map = L.map('map', { 
-            center: [20, 0], 
-            zoom: 2, 
-            zoomControl: false, 
-            attributionControl: false,
-            maxBounds: [[-85, -180], [85, 180]]
-        });
-        layers.labels.addTo(map);
-        await refreshData();
+    
+    function offsetGeometry(geometry, lngOffset) {
+        if (!geometry) return geometry;
+        const newGeom = { ...geometry };
+        if (geometry.type === 'Polygon') {
+            newGeom.coordinates = offsetCoords(geometry.coordinates, lngOffset);
+        } else if (geometry.type === 'MultiPolygon') {
+            newGeom.coordinates = geometry.coordinates.map(poly => offsetCoords(poly, lngOffset));
+        }
+        return newGeom;
     }
-
-    async function refreshData() {
-        try {
-            const [resN, resM] = await Promise.all([
-                fetch('https://api2.warera.io/trpc/country.getAllCountries'),
-                fetch('https://api4.warera.io/trpc/map.getMapData')
-            ]);
-            nazioniGlobal = (await resN.json()).result.data;
-            mapDataGlobal = (await resM.json()).result.data;
-            popolaListe();
-            renderMap();
-        } catch (e) { console.error("Data Error:", e); }
-    }
-
-    // [Funzioni Logiche getIndirectAllies e getEnemyAllies invariate come richiesto]
-    function getIndirectAllies(targetId) {
-        const target = nazioniGlobal.find(n => n._id === targetId);
-        if (!target || !target.allies) return [];
-        let indirect = new Set();
-        target.allies.forEach(allyId => {
-            const allyData = nazioniGlobal.find(n => n._id === allyId);
-            if (allyData && allyData.allies) allyData.allies.forEach(id => {
-                if (id !== targetId && !target.allies.includes(id)) indirect.add(id);
+    
+    function offsetGeoJSON(geojson, lngOffset) {
+        if (!geojson) return null;
+        const cloned = JSON.parse(JSON.stringify(geojson));
+        if (cloned.type === 'FeatureCollection') {
+            cloned.features = cloned.features.map(f => {
+                f.geometry = offsetGeometry(f.geometry, lngOffset);
+                return f;
             });
+        } else if (cloned.type === 'Feature') {
+            cloned.geometry = offsetGeometry(cloned.geometry, lngOffset);
+        }
+        return cloned;
+    }
+    
+    // ---------- DIPLOMACY HELPERS ----------
+    function getIndirectAllies(targetId) {
+        const target = nationMap.get(targetId);
+        if (!target || !target.allies) return [];
+        const indirect = new Set();
+        target.allies.forEach(allyId => {
+            const ally = nationMap.get(allyId);
+            if (ally && ally.allies) {
+                ally.allies.forEach(id => {
+                    if (id !== targetId && !target.allies.includes(id)) indirect.add(id);
+                });
+            }
         });
         return Array.from(indirect);
     }
-
+    
     function getEnemyAllies(targetId) {
-        const target = nazioniGlobal.find(n => n._id === targetId);
+        const target = nationMap.get(targetId);
         if (!target || !target.warsWith) return [];
-        let eAllies = new Set();
+        const enemyAllies = new Set();
         target.warsWith.forEach(enemyId => {
-            const enemyData = nazioniGlobal.find(n => n._id === enemyId);
-            if (enemyData && enemyData.allies) enemyData.allies.forEach(id => {
-                if (id !== targetId) eAllies.add(id);
-            });
+            const enemy = nationMap.get(enemyId);
+            if (enemy && enemy.allies) {
+                enemy.allies.forEach(id => {
+                    if (id !== targetId) enemyAllies.add(id);
+                });
+            }
         });
-        return Array.from(eAllies);
+        return Array.from(enemyAllies);
+    }
+    
+    // ---------- UI UPDATES ----------
+    function updateDynamicLegend() {
+        const legendBox = document.getElementById('dynamic-legend');
+        if (!selectedCountryId) {
+            legendBox.innerHTML = `
+                <div class="legend-item"><div class="dot" style="background: #555;"></div><span>NO SELECTION</span></div>
+                <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div><span>MANUAL NAP</span></div>
+            `;
+            return;
+        }
+        legendBox.innerHTML = `
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.SELECTED};"></div><span>SELECTED NATION</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div><span>MANUAL NAP</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_DIRECT};"></div><span>DIRECT WAR</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div><span>INDIRECT ENEMY</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_DIRECT};"></div><span>DIRECT ALLY</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_INDIRECT};"></div><span>INDIRECT ALLY</span></div>
+            <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid rgba(255,255,255,0.3);"></div><span>NEUTRAL</span></div>
+        `;
+    }
+    
+    function updateStats() {
+        if (!selectedCountryId) {
+            document.getElementById('stats-allies').textContent = '0';
+            document.getElementById('stats-wars').textContent = '0';
+            document.getElementById('stats-naps').textContent = customNaps.length;
+            return;
+        }
+        const target = nationMap.get(selectedCountryId);
+        if (target) {
+            document.getElementById('stats-allies').textContent = (target.allies || []).length;
+            document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
+            document.getElementById('stats-naps').textContent = customNaps.length;
+        }
+    }
+    
+    function updateSelectedDisplay() {
+        const display = document.getElementById('selected-display');
+        const nameDisplay = document.getElementById('selected-name-display');
+        if (selectedCountryId) {
+            const nation = nationMap.get(selectedCountryId);
+            if (nation) {
+                nameDisplay.textContent = nation.name;
+                display.style.display = 'block';
+            }
+        } else {
+            display.style.display = 'none';
+        }
     }
 
+    // ---------- MAP RENDERING (INFINITE GLOBE) ----------
     function renderMap() {
         if (!mapDataGlobal) return;
+        
         updateDynamicLegend();
+        updateStats();
+        updateSelectedDisplay();
+        
         const topoData = mapDataGlobal.map;
-        const labelsData = (mapDataGlobal.countryLabels || (topoData.objects.countryLabels ? topoData.objects.countryLabels.geometries : []));
+        const labelsData = mapDataGlobal.countryLabels || 
+                         (topoData.objects.countryLabels ? topoData.objects.countryLabels.geometries : []);
         
         const isExtended = document.getElementById('checkExtended').checked;
         const showLabels = document.getElementById('checkLabels').checked;
-
+        
+        // Clear old layers
         if (layers.regions) map.removeLayer(layers.regions);
         if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
         if (layers.coastlines) map.removeLayer(layers.coastlines);
-
+        
+        // Prepare relationships for styling
         let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
         if (selectedCountryId) {
-            const target = nazioniGlobal.find(n => n._id === selectedCountryId);
+            const target = nationMap.get(selectedCountryId);
             if (target) {
                 directWars = target.warsWith || [];
                 directAllies = target.allies || [];
@@ -242,57 +571,218 @@
                 enemyAllies = getEnemyAllies(selectedCountryId);
             }
         }
-
-        layers.regions = L.geoJson(topojson.feature(topoData, topoData.objects.regions), {
-            style: (f) => {
-                const cId = f.properties.countryId;
-                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
-                let color = styleInfo ? styleInfo.properties.strokeColor : COLORS.NEUTRAL_UNSELECTED;
-                let opacity = 0.8;
-
-                if (selectedCountryId) {
-                    const isManualNap = customNaps.includes(cId);
-                    if (cId === selectedCountryId) { color = COLORS.SELECTED; opacity = 1; } 
-                    else if (isManualNap) { color = COLORS.NAP; opacity = 1; }
-                    else if (directAllies.includes(cId)) { color = COLORS.ALLY_DIRECT; opacity = 1; }
-                    else if (directWars.includes(cId)) { color = COLORS.WAR_DIRECT; opacity = 1; }
-                    else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { color = COLORS.BORDERLINE; opacity = 1; }
-                    else if (enemyAllies.includes(cId)) { color = COLORS.WAR_INDIRECT; opacity = 1; }
-                    else if (indirectAllies.includes(cId) && isExtended) { color = COLORS.ALLY_INDIRECT; opacity = 1; }
-                    else { color = COLORS.DEFAULT_LAND; opacity = 0.9; }
-                }
-                return { fillColor: color, fillOpacity: opacity, color: "rgba(0,0,0,0.4)", weight: 0.5 };
-            },
+        
+        // --- Step 1: Generate base world GeoJSON once ---
+        const baseWorld = topojson.feature(topoData, topoData.objects.regions);
+        
+        // --- Step 2: Create three copies (-360°, 0°, +360°) ---
+        const leftWorld = offsetGeoJSON(baseWorld, -360);
+        const centerWorld = baseWorld;
+        const rightWorld = offsetGeoJSON(baseWorld, 360);
+        
+        // Combine into one FeatureCollection
+        const infiniteWorld = {
+            type: 'FeatureCollection',
+            features: [
+                ...leftWorld.features,
+                ...centerWorld.features,
+                ...rightWorld.features
+            ]
+        };
+        
+        // --- Step 3: Render regions with style function that uses original countryId ---
+layers.regions = L.geoJson(infiniteWorld, {
+    style: (f) => {
+        const cId = f.properties.countryId;
+        const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
+        let color = styleInfo ? styleInfo.properties.strokeColor : COLORS.NEUTRAL_UNSELECTED;
+        let opacity = 0.85;
+        
+        if (selectedCountryId) {
+            const isManualNap = customNaps.includes(cId);
+            if (cId === selectedCountryId) { 
+                color = COLORS.SELECTED; opacity = 1; 
+            } else if (isManualNap) { 
+                color = COLORS.NAP; opacity = 1; 
+            } else if (directAllies.includes(cId)) { 
+                color = COLORS.ALLY_DIRECT; opacity = 1; 
+            } else if (directWars.includes(cId)) { 
+                color = COLORS.WAR_DIRECT; opacity = 1; 
+            } else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { 
+                color = COLORS.BORDERLINE; opacity = 1; 
+            } else if (enemyAllies.includes(cId)) { 
+                color = COLORS.WAR_INDIRECT; opacity = 1; 
+            } else if (indirectAllies.includes(cId) && isExtended) { 
+                color = COLORS.ALLY_INDIRECT; opacity = 1; 
+            } else { 
+                color = COLORS.DEFAULT_LAND; opacity = 0.9; 
+            }
+        }
+        
+        // --- Dynamic Outline Logic ---
+        let outlineColor = "#ffffff";
+        let outlineWeight = 0.2;
+        let outlineOpacity = 0.6;
+        
+        if (selectedCountryId) {
+            if (cId === selectedCountryId) {
+                outlineColor = "#000000";   // Black
+                outlineWeight = 1;
+                outlineOpacity = 0.6;
+            } else if (directAllies.includes(cId)) {
+                outlineColor = "#000000";   // Black
+                outlineWeight = 1;
+                outlineOpacity = 0.6;
+            } else if (directWars.includes(cId)) {
+                outlineColor = "#000000";   // Black
+                outlineWeight = 1;
+                outlineOpacity = 0.6;
+            } else if (customNaps.includes(cId)) {
+                outlineColor = "#000000";   // Black
+                outlineWeight = 1;
+                outlineOpacity = 0.6;
+            } else {
+                outlineColor = "#000000";   // Dim gray for neutrals
+                outlineWeight = 1;
+                outlineOpacity = 0.6;
+            }
+        }
+        
+        return { 
+            fillColor: color, 
+            fillOpacity: opacity, 
+            color: outlineColor,
+            weight: outlineWeight,
+            opacity: outlineOpacity
+        };
+    },
             onEachFeature: (f, layer) => {
                 layer.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
-                    selectedCountryId = (selectedCountryId === f.properties.countryId) ? null : f.properties.countryId;
+                    const newId = f.properties.countryId;
+                    selectedCountryId = (selectedCountryId === newId) ? null : newId;
                     renderMap();
+                    if (selectedCountryId) {
+                        const nation = nationMap.get(selectedCountryId);
+                        if (nation) showToast(`Selected: ${nation.name}`, 'info');
+                    }
                 });
             }
         }).addTo(map);
-
-        layers.nationalBorders = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId), {
-            style: { color: "rgba(255,255,255,0.6)", weight: 1.5, interactive: false }
+        
+        // --- Step 4: National borders (mesh) duplicated as well ---
+        // We need to generate the mesh for the base world, then offset it.
+        const baseMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => 
+            a !== b && a.properties.countryId !== b.properties.countryId
+        );
+        // Convert mesh to GeoJSON Feature
+        const meshFeature = {
+            type: 'Feature',
+            geometry: baseMesh
+        };
+        const leftMesh = offsetGeoJSON(meshFeature, -360);
+        const rightMesh = offsetGeoJSON(meshFeature, 360);
+        const infiniteMesh = {
+            type: 'FeatureCollection',
+            features: [leftMesh, meshFeature, rightMesh]
+        };
+        
+        layers.nationalBorders = L.geoJson(infiniteMesh, {
+            style: { 
+                color: "#ffffff", 
+                weight: 1.5, 
+                opacity: 0.8, 
+                interactive: false 
+            }
         }).addTo(map);
-
-        layers.coastlines = L.geoJson(topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b), {
-            style: { color: "#ffffff", weight: 1, interactive: false }
+        
+        // --- Step 5: Coastlines (optional, but same approach) ---
+        const baseCoastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
+        const coastFeature = { type: 'Feature', geometry: baseCoastMesh };
+        const leftCoast = offsetGeoJSON(coastFeature, -360);
+        const rightCoast = offsetGeoJSON(coastFeature, 360);
+        const infiniteCoast = {
+            type: 'FeatureCollection',
+            features: [leftCoast, coastFeature, rightCoast]
+        };
+        layers.coastlines = L.geoJson(infiniteCoast, {
+            style: { color: "#ffffff", weight: 1.5, interactive: false }
         }).addTo(map);
-
+        
+        // Bring borders to front
+        layers.nationalBorders.bringToFront();
+        
+        // --- Step 6: Labels (show three copies as well) ---
         layers.labels.clearLayers();
         if (showLabels) {
             labelsData.forEach(l => {
                 if (l.coordinates) {
-                    L.marker([l.coordinates[1], l.coordinates[0]], {
-                        icon: L.divIcon({ className: 'nation-label', html: `<span class="nation-name">${l.properties.countryName}</span>` }),
-                        interactive: false
-                    }).addTo(layers.labels);
+                    // Add label at -360, 0, +360
+                    const baseLng = l.coordinates[0];
+                    const lat = l.coordinates[1];
+                    const name = l.properties.countryName;
+                    
+                    [-360, 0, 360].forEach(offset => {
+                        L.marker([lat, baseLng + offset], {
+                            icon: L.divIcon({ 
+                                className: 'nation-label', 
+                                html: `<span class="nation-name">${name}</span>`,
+                                iconSize: [100, 20]
+                            }),
+                            interactive: false,
+                            zIndexOffset: 1000
+                        }).addTo(layers.labels);
+                    });
                 }
             });
         }
     }
 
+    // ---------- DATA FETCHING ----------
+    async function init() {
+        map = L.map('map', { 
+            center: [20, 0], 
+            zoom: 2.5, 
+            zoomControl: true,
+            zoomControlPosition: 'bottomright',
+            attributionControl: false,
+            minZoom: 2,
+            // NO maxBounds, and worldCopyJump false for true infinite scroll
+            worldCopyJump: false,
+            maxBoundsViscosity: 0.0
+        });
+        layers.labels.addTo(map);
+        await refreshData();
+    }
+    
+    async function refreshData() {
+        try {
+            showLoading();
+            const [resN, resM] = await Promise.all([
+                fetch('https://api2.warera.io/trpc/country.getAllCountries'),
+                fetch('https://api4.warera.io/trpc/map.getMapData')
+            ]);
+            if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
+            
+            const nationsData = await resN.json();
+            const mapData = await resM.json();
+            nazioniGlobal = nationsData.result.data;
+            mapDataGlobal = mapData.result.data;
+            
+            nationMap.clear();
+            nazioniGlobal.forEach(n => nationMap.set(n._id, n));
+            
+            popolaListe();
+            renderMap();
+            showToast('Strategic data loaded successfully', 'success');
+        } catch (e) {
+            console.error("Data Error:", e);
+            showToast('Failed to load game data. Please refresh.', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+    
     function popolaListe() {
         const datalist = document.getElementById('nazioniList');
         datalist.innerHTML = '';
@@ -302,44 +792,95 @@
             datalist.appendChild(opt);
         });
     }
-
+    
+    // ---------- NAP MANAGEMENT ----------
     function aggiungiNap() {
-        const val = document.getElementById('napInput').value;
-        const found = nazioniGlobal.find(n => n.name === val);
-        if (found && !customNaps.includes(found._id)) {
-            customNaps.push(found._id);
-            document.getElementById('napInput').value = ''; 
-            aggiornaListaNap(); renderMap();
-        }
+        const input = document.getElementById('napInput');
+        const val = input.value.trim();
+        if (!val) { showToast('Please enter a nation name', 'error'); return; }
+        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
+        if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
+        if (customNaps.includes(found._id)) { showToast(`${found.name} is already in NAP list`, 'error'); return; }
+        if (selectedCountryId && found._id === selectedCountryId) { showToast(`Cannot add selected nation to NAP list`, 'error'); return; }
+        
+        customNaps.push(found._id);
+        input.value = ''; 
+        aggiornaListaNap(); 
+        renderMap();
+        showToast(`Added ${found.name} to NAP list`, 'success');
     }
-
+    
     function rimuoviNap(id) {
+        const nation = nationMap.get(id);
         customNaps = customNaps.filter(n => n !== id);
-        aggiornaListaNap(); renderMap();
+        aggiornaListaNap(); 
+        renderMap();
+        if (nation) showToast(`Removed ${nation.name} from NAP list`, 'info');
     }
-
+    
     function aggiornaListaNap() {
         const container = document.getElementById('napList');
+        const countBadge = document.getElementById('nap-count');
+        countBadge.textContent = customNaps.length;
+        if (customNaps.length === 0) {
+            container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
+            return;
+        }
         container.innerHTML = "";
         customNaps.forEach(id => {
-            const n = nazioniGlobal.find(x => x._id === id);
-            if (n) container.innerHTML += `<div class="nap-item"><span>${n.name}</span> <span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
+            const n = nationMap.get(id);
+            if (n) {
+                container.innerHTML += `
+                    <div class="nap-item">
+                        <span style="font-weight: 600;">${n.name}</span> 
+                        <span class="remove-nap" onclick="rimuoviNap('${id}')" title="Remove NAP">✕</span>
+                    </div>
+                `;
+            }
         });
     }
-
+    
+    // ---------- SEARCH & RESET ----------
     function cercaNazione() {
-        const val = document.getElementById('cercaInput').value.toLowerCase().trim();
-        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
-        if (found) { selectedCountryId = found._id; document.getElementById('cercaInput').value = found.name; renderMap(); }
+        const input = document.getElementById('cercaInput');
+        const val = input.value.toLowerCase().trim();
+        if (!val) { showToast('Please enter a nation name', 'error'); return; }
+        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || 
+                      nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
+        if (found) { 
+            selectedCountryId = found._id; 
+            input.value = found.name; 
+            renderMap();
+            showToast(`Selected: ${found.name}`, 'success');
+            if (window.innerWidth <= 768) {
+                document.getElementById('dynamic-legend').classList.add('hidden');
+            }
+        } else {
+            showToast(`Nation "${val}" not found`, 'error');
+        }
     }
-
+    
     function resetDiplomazia() {
-        selectedCountryId = null; customNaps = []; 
+        selectedCountryId = null; 
+        customNaps = []; 
         document.getElementById('cercaInput').value = '';
         document.getElementById('checkExtended').checked = false;
-        aggiornaListaNap(); renderMap();
+        document.getElementById('napInput').value = '';
+        aggiornaListaNap(); 
+        renderMap();
+        showToast('Reset complete', 'info');
     }
-
+    
+    // Enter key support
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('cercaInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') cercaNazione();
+        });
+        document.getElementById('napInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') aggiungiNap();
+        });
+    });
+    
     window.onload = init;
 </script>
 </body>
