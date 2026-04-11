@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+        <!-- Font ufficiale WarEra -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -22,7 +24,7 @@
         #map { 
             height: 100vh; 
             width: 100vw; 
-            background: #000000 !important; 
+            background: #000000 !important;   /* acqua ufficiale WarEra */
         }
         /* Loading Overlay */
         #loading-overlay {
@@ -341,10 +343,10 @@
             transition: opacity 0.2s ease;
         }
         .nation-name { 
-            font-size: 10px; 
-            font-weight: 800; 
+            font-family: 'JetBrains Mono', monospace !important;
+            font-weight: 800 !important;
             text-transform: uppercase; 
-            text-shadow: 0 2px 4px #000, 0 0 10px rgba(0,0,0,0.8); 
+            text-shadow: 0 0 4px #000, 0 0 8px #000;
             white-space: nowrap;
             letter-spacing: 0.3px;
         }
@@ -829,13 +831,13 @@
                 
                 if (selectedCountryId) {
                     if (cId === selectedCountryId) {
-                        outlineColor = "#FFD700"; outlineWeight = 2; outlineOpacity = 1;
+                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 1;
                     } else if (directAllies.includes(cId)) {
-                        outlineColor = "#2ecc71"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
                     } else if (directWars.includes(cId)) {
-                        outlineColor = "#E63946"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
                     } else if (customNaps.includes(cId)) {
-                        outlineColor = "#00d4ff"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
                     }
                 }
                 
@@ -868,17 +870,17 @@
         const rightMesh = offsetGeoJSON(meshFeature, 360);
         const infiniteMesh = { type: 'FeatureCollection', features: [leftMesh, meshFeature, rightMesh] };
         layers.nationalBorders = L.geoJson(infiniteMesh, {
-            style: { color: "#ffffff", weight: 1.5, opacity: 0.8, interactive: false }
+            style: { color: "#ffffff", weight: 0.8, opacity: 0.8, interactive: false }
         }).addTo(map);
         
-        // Coastlines - Simple white
+        // Coastlines - colore ufficiale WarEra
         const baseCoastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
         const coastFeature = { type: 'Feature', geometry: baseCoastMesh };
         const leftCoast = offsetGeoJSON(coastFeature, -360);
         const rightCoast = offsetGeoJSON(coastFeature, 360);
         const infiniteCoast = { type: 'FeatureCollection', features: [leftCoast, coastFeature, rightCoast] };
         layers.coastlines = L.geoJson(infiniteCoast, {
-            style: { color: "#ffffff", weight: 1.5, interactive: false }
+            style: { color: "#ffffff", weight: 0.8, interactive: false }
         }).addTo(map);
         
         layers.nationalBorders.bringToFront();
@@ -887,13 +889,12 @@
         if (showLabels) {
             const currentZoom = map.getZoom();
             
-            // Visibility filter: show labels based on zoom level
+            // Soglie ufficiali WarEra (da mappa.txt)
             const shouldShowLabel = (props) => {
                 const flagSize = props.flagSize || 0.2;
-                if (currentZoom >= 4) return true;                  // zoom 4+ : all labels
-                if (currentZoom >= 3) return flagSize >= 0.15;      // zoom 3 : most nations
-                if (currentZoom >= 2.5) return flagSize >= 0.18;    // zoom 2.5 : major nations
-                if (currentZoom >= 2) return flagSize >= 0.25;      // zoom 2 : important nations
+                if (currentZoom >= 4) return true;               // REGION level
+                if (currentZoom >= 3) return flagSize >= 0.12;   // FAR_REGION
+                if (currentZoom >= 2) return flagSize >= 0.15;   // COUNTRY
                 return false;
             };
             // Font scaling – slightly larger when zoomed out for readability
@@ -944,6 +945,12 @@
                     : '';
                 
                 // For infinite world, add three copies
+                // Opacità fade tra zoom 2 e 3 (ufficiale)
+                let opacity = 1.0;
+                if (currentZoom < 3) {
+                    opacity = Math.max(0.3, (currentZoom - 2) * 0.7); // zoom 2 → 0.3, zoom 3 → 1.0
+                }
+                
                 [-360, 0, 360].forEach(offset => {
                     const lng = baseLng + offset;
                     // Check collision – only add if grid cell is free
@@ -953,11 +960,12 @@
                         const marker = L.marker([lat, lng], {
                             icon: L.divIcon({ 
                                 className: 'nation-label', 
-                                html: `<div style="display: flex; align-items: center; gap: 4px;">${flagHtml}<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span></div>`,
+                                html: `<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">${flagHtml}<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span></div>`,
                                 iconSize: undefined
                             }),
                             interactive: false,
-                            zIndexOffset: 1000
+                            zIndexOffset: 1000,
+                            opacity: opacity  // set initial opacity
                         });
                         marker.addTo(layers.labels);
                     }
