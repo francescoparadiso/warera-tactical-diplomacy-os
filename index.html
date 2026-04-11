@@ -101,17 +101,107 @@
         }
         .stat-item { display: flex; flex-direction: column; align-items: center; }
         .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
+        
+        /* Collapsible Panel Behavior */
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+        .panel-content {
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            overflow: hidden;
+        }
+        .panel-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            margin-top: 0 !important;
+            pointer-events: none;
+        }
+        .collapse-icon {
+            font-size: 18px;
+            color: #00d4ff;
+            transition: transform 0.3s;
+        }
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+        /* Desktop: panels always expanded */
+        @media (min-width: 769px) {
+            .panel-header {
+                cursor: default;
+                pointer-events: none;
+            }
+            .collapse-icon {
+                display: none;
+            }
+            .panel-content {
+                max-height: none !important;
+                opacity: 1 !important;
+                margin-top: 12px !important;
+                pointer-events: auto !important;
+            }
+        }
+
+        /* Mobile Stats Chip */
+        #stats-chip {
+            display: none;
+            background: rgba(10,10,10,0.95);
+            border: 1px solid #333;
+            border-radius: 30px;
+            padding: 8px 16px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        .stats-chip-content {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+        }
+        .stats-chip-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .stats-chip-value {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+
         @media (max-width: 768px) {
             #top-left, #top-right { left: 10px; right: 10px; width: calc(100% - 20px); max-width: none; }
             #top-left { top: 10px; }
-            #top-right { top: auto; bottom: 80px; max-height: 35vh; overflow-y: auto; }
+            #top-right { top: auto; bottom: 80px; max-height: 35vh; overflow-y: visible; }
             #legend-container { bottom: 10px; left: 10px; width: auto; }
-            #stats-bar { bottom: 10px; right: 10px; }
-            .stats-content { gap: 10px; }
+            #stats-bar { display: none; }
+            #stats-chip {
+                display: block;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 1001;
+            }
+            .panel {
+                padding: 12px;
+            }
+            .panel-content {
+                max-height: 300px;
+            }
+            #top-left .panel-content,
+            #top-right .panel-content {
+                margin-top: 12px;
+            }
+            .search-container,
+            .nap-input-container {
+                flex-wrap: wrap;
+            }
             .switch-label { font-size: 12px; }
             input[type="text"], button { padding: 12px; font-size: 14px; }
-            .panel { padding: 12px; }
         }
+
         .options-menu { 
             margin-top: 16px; 
             border-top: 1px solid #333; 
@@ -239,13 +329,19 @@
         button:active { transform: translateY(0); }
         .btn-reset { background: #333; }
         .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
-        .nation-label { background: transparent !important; border: none !important; pointer-events: none !important; }
+        
+        /* Nation Labels */
+        .nation-label {
+            background: transparent !important;
+            border: none !important;
+            pointer-events: none !important;
+            transition: opacity 0.2s ease;
+        }
         .nation-name { 
             font-size: 10px; 
             font-weight: 800; 
             text-transform: uppercase; 
             text-shadow: 0 2px 4px #000, 0 0 10px rgba(0,0,0,0.8); 
-            color: #fff; 
             white-space: nowrap;
             letter-spacing: 0.3px;
         }
@@ -270,7 +366,7 @@
             transition: transform 0.2s;
         }
         .remove-nap:hover { transform: scale(1.2); }
-        .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
         .section-title strong { font-size: 13px; color: #00d4ff; letter-spacing: 0.5px; }
         .badge { background: #00d4ff; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
         .search-container { display: flex; gap: 8px; }
@@ -302,50 +398,63 @@
 <!-- Main UI -->
 <div id="top-left" class="overlay">
     <div class="panel">
-        <div class="section-title">
-            <strong>⚔️ WARERA DIPLOMACY OS</strong>
-            <span class="badge">v2.0</span>
+        <div class="panel-header" onclick="togglePanel('panel-left')">
+            <div class="section-title">
+                <strong>⚔️ WARERA DIPLOMACY OS</strong>
+                <span class="badge">v2.0</span>
+            </div>
+            <span class="collapse-icon" id="icon-left">▼</span>
         </div>
-        <div id="selected-display" class="selected-info" style="display: none;">
-            <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
-            <div class="selected-name" id="selected-name-display"></div>
-        </div>
-        <div class="search-container">
-            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
-            <button onclick="cercaNazione()">🔍</button>
-            <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
-        </div>
-        <div class="options-menu">
-            <label class="switch-container">
-                <span class="switch-label">🌐 Extended Diplomacy</span>
-                <div class="switch">
-                    <input type="checkbox" id="checkExtended" onchange="renderMap()">
-                    <span class="slider"></span>
+        <div id="panel-left" class="panel-content">
+            <div id="selected-display" class="selected-info" style="display: none;">
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <img id="selected-flag" src="" style="width: 24px; height: 16px; object-fit: cover; border-radius: 2px; display: none;">
+                    <span class="selected-name" id="selected-name-display"></span>
                 </div>
-            </label>
-            <label class="switch-container">
-                <span class="switch-label">🏷️ Show Nation Names</span>
-                <div class="switch">
-                    <input type="checkbox" id="checkLabels" checked onchange="renderMap()">
-                    <span class="slider"></span>
-                </div>
-            </label>
+            </div>
+            <div class="search-container">
+                <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
+                <button onclick="cercaNazione()">🔍</button>
+                <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
+            </div>
+            <div class="options-menu">
+                <label class="switch-container">
+                    <span class="switch-label">🌐 Extended Diplomacy</span>
+                    <div class="switch">
+                        <input type="checkbox" id="checkExtended" onchange="renderMap()">
+                        <span class="slider"></span>
+                    </div>
+                </label>
+                <label class="switch-container">
+                    <span class="switch-label">🏷️ Show Nation Names</span>
+                    <div class="switch">
+                        <input type="checkbox" id="checkLabels" checked onchange="renderMap()">
+                        <span class="slider"></span>
+                    </div>
+                </label>
+            </div>
         </div>
     </div>
 </div>
 
 <div id="top-right" class="overlay">
     <div class="panel">
-        <div class="section-title">
-            <strong>🤝 MANUAL NAP (PRIORITY)</strong>
-            <span class="badge" id="nap-count">0</span>
+        <div class="panel-header" onclick="togglePanel('panel-right')">
+            <div class="section-title">
+                <strong>🤝 MANUAL NAP (PRIORITY)</strong>
+                <span class="badge" id="nap-count">0</span>
+            </div>
+            <span class="collapse-icon" id="icon-right">▼</span>
         </div>
-        <div class="nap-input-container">
-            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
-            <button onclick="aggiungiNap()">ADD</button>
-        </div>
-        <div id="napList">
-            <div class="empty-state">No manual NAPs set</div>
+        <div id="panel-right" class="panel-content">
+            <div class="nap-input-container">
+                <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
+                <button onclick="aggiungiNap()">ADD</button>
+            </div>
+            <div id="napList">
+                <div class="empty-state">No manual NAPs set</div>
+            </div>
         </div>
     </div>
 </div>
@@ -365,6 +474,15 @@
     </div>
 </div>
 
+<!-- Mobile Stats Chip -->
+<div id="stats-chip" onclick="toggleStatsDetails()">
+    <div class="stats-chip-content">
+        <div class="stats-chip-item">🤝 <span class="stats-chip-value" id="chip-allies">0</span></div>
+        <div class="stats-chip-item">⚔️ <span class="stats-chip-value" id="chip-wars">0</span></div>
+        <div class="stats-chip-item">🕊️ <span class="stats-chip-value" id="chip-naps">0</span></div>
+    </div>
+</div>
+
 <div id="map"></div>
 
 <script>
@@ -381,7 +499,7 @@
         labels: L.layerGroup() 
     };
     
-    const nationMap = new Map(); // Cache for O(1) lookups
+    const nationMap = new Map();
     
     // Color palette
     const COLORS = {
@@ -396,8 +514,46 @@
         NEUTRAL_UNSELECTED: "#3a3d46"
     };
 
+    // ---------- PANEL TOGGLING ----------
+    function togglePanel(panelId) {
+        if (window.innerWidth > 768) return;
+        const content = document.getElementById(panelId);
+        const icon = document.getElementById('icon-' + panelId.split('-')[1]);
+        if (!content || !icon) return;
+        content.classList.toggle('collapsed');
+        icon.classList.toggle('collapsed');
+        localStorage.setItem(panelId + '-collapsed', content.classList.contains('collapsed'));
+    }
+    
+    function initPanelStates() {
+        if (window.innerWidth > 768) return;
+        ['panel-left', 'panel-right'].forEach(id => {
+            const content = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id.split('-')[1]);
+            if (!content || !icon) return;
+            const isCollapsed = localStorage.getItem(id + '-collapsed') === 'true';
+            if (isCollapsed) {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+            }
+        });
+    }
+    
+    function updateStatsChip() {
+        document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
+        document.getElementById('chip-wars').textContent = document.getElementById('stats-wars').textContent;
+        document.getElementById('chip-naps').textContent = document.getElementById('stats-naps').textContent;
+    }
+    
+    function toggleStatsDetails() {
+        const selectedName = document.getElementById('selected-name-display').textContent || 'No selection';
+        const allies = document.getElementById('stats-allies').textContent;
+        const wars = document.getElementById('stats-wars').textContent;
+        const naps = document.getElementById('stats-naps').textContent;
+        showToast(`${selectedName} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
+    }
 
-    // ---------- UTILITIES: TOAST & LOADING ----------
+    // ---------- UTILITIES ----------
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -410,27 +566,19 @@
         }, 3000);
     }
     
-    function showLoading() {
-        document.getElementById('loading-overlay').style.display = 'flex';
-    }
+    function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
     function hideLoading() {
         document.getElementById('loading-overlay').style.opacity = '0';
-        setTimeout(() => {
-            document.getElementById('loading-overlay').style.display = 'none';
-        }, 300);
+        setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 300);
     }
     
-    function toggleLegend() { 
-        document.getElementById('dynamic-legend').classList.toggle('hidden'); 
-    }
+    function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
 
-    // ---------- GEOJSON OFFSET UTILS (for infinite globe) ----------
+    // ---------- GEOJSON OFFSET ----------
     function offsetCoords(coords, lngOffset) {
         if (typeof coords[0] === 'number') {
-            // It's a coordinate pair [lng, lat]
             return [coords[0] + lngOffset, coords[1]];
         }
-        // Recursively process arrays (rings, polygons, etc.)
         return coords.map(c => offsetCoords(c, lngOffset));
     }
     
@@ -441,6 +589,12 @@
             newGeom.coordinates = offsetCoords(geometry.coordinates, lngOffset);
         } else if (geometry.type === 'MultiPolygon') {
             newGeom.coordinates = geometry.coordinates.map(poly => offsetCoords(poly, lngOffset));
+        } else if (geometry.type === 'LineString') {
+            if (!geometry.coordinates) return geometry;
+            newGeom.coordinates = geometry.coordinates.map(coord => [coord[0] + lngOffset, coord[1]]);
+        } else if (geometry.type === 'MultiLineString') {
+            if (!geometry.coordinates) return geometry;
+            newGeom.coordinates = geometry.coordinates.map(line => line.map(coord => [coord[0] + lngOffset, coord[1]]));
         }
         return newGeom;
     }
@@ -516,23 +670,36 @@
             document.getElementById('stats-allies').textContent = '0';
             document.getElementById('stats-wars').textContent = '0';
             document.getElementById('stats-naps').textContent = customNaps.length;
-            return;
+        } else {
+            const target = nationMap.get(selectedCountryId);
+            if (target) {
+                document.getElementById('stats-allies').textContent = (target.allies || []).length;
+                document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
+                document.getElementById('stats-naps').textContent = customNaps.length;
+            }
         }
-        const target = nationMap.get(selectedCountryId);
-        if (target) {
-            document.getElementById('stats-allies').textContent = (target.allies || []).length;
-            document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
-            document.getElementById('stats-naps').textContent = customNaps.length;
-        }
+        updateStatsChip();
     }
     
     function updateSelectedDisplay() {
         const display = document.getElementById('selected-display');
         const nameDisplay = document.getElementById('selected-name-display');
+        const flagImg = document.getElementById('selected-flag');
         if (selectedCountryId) {
             const nation = nationMap.get(selectedCountryId);
             if (nation) {
                 nameDisplay.textContent = nation.name;
+                
+                // Find country code from countryLabels
+                const labelsData = mapDataGlobal?.countryLabels?.geometries || [];
+                const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
+                if (labelInfo && labelInfo.properties.countryCode) {
+                    const code = labelInfo.properties.countryCode.toLowerCase();
+                    flagImg.src = `https://flagcdn.com/24x18/${code}.png`;
+                    flagImg.style.display = 'block';
+                } else {
+                    flagImg.style.display = 'none';
+                }
                 display.style.display = 'block';
             }
         } else {
@@ -540,7 +707,7 @@
         }
     }
 
-    // ---------- MAP RENDERING (INFINITE GLOBE) ----------
+    // ---------- MAP RENDERING ----------
     function renderMap() {
         if (!mapDataGlobal) return;
         
@@ -555,12 +722,11 @@
         const isExtended = document.getElementById('checkExtended').checked;
         const showLabels = document.getElementById('checkLabels').checked;
         
-        // Clear old layers
         if (layers.regions) map.removeLayer(layers.regions);
         if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
         if (layers.coastlines) map.removeLayer(layers.coastlines);
+        layers.labels.clearLayers();
         
-        // Prepare relationships for styling
         let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
         if (selectedCountryId) {
             const target = nationMap.get(selectedCountryId);
@@ -572,90 +738,59 @@
             }
         }
         
-        // --- Step 1: Generate base world GeoJSON once ---
         const baseWorld = topojson.feature(topoData, topoData.objects.regions);
-        
-        // --- Step 2: Create three copies (-360°, 0°, +360°) ---
         const leftWorld = offsetGeoJSON(baseWorld, -360);
         const centerWorld = baseWorld;
         const rightWorld = offsetGeoJSON(baseWorld, 360);
-        
-        // Combine into one FeatureCollection
         const infiniteWorld = {
             type: 'FeatureCollection',
-            features: [
-                ...leftWorld.features,
-                ...centerWorld.features,
-                ...rightWorld.features
-            ]
+            features: [...leftWorld.features, ...centerWorld.features, ...rightWorld.features]
         };
         
-        // --- Step 3: Render regions with style function that uses original countryId ---
-layers.regions = L.geoJson(infiniteWorld, {
-    style: (f) => {
-        const cId = f.properties.countryId;
-        const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
-        let color = styleInfo ? styleInfo.properties.strokeColor : COLORS.NEUTRAL_UNSELECTED;
-        let opacity = 0.85;
-        
-        if (selectedCountryId) {
-            const isManualNap = customNaps.includes(cId);
-            if (cId === selectedCountryId) { 
-                color = COLORS.SELECTED; opacity = 1; 
-            } else if (isManualNap) { 
-                color = COLORS.NAP; opacity = 1; 
-            } else if (directAllies.includes(cId)) { 
-                color = COLORS.ALLY_DIRECT; opacity = 1; 
-            } else if (directWars.includes(cId)) { 
-                color = COLORS.WAR_DIRECT; opacity = 1; 
-            } else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { 
-                color = COLORS.BORDERLINE; opacity = 1; 
-            } else if (enemyAllies.includes(cId)) { 
-                color = COLORS.WAR_INDIRECT; opacity = 1; 
-            } else if (indirectAllies.includes(cId) && isExtended) { 
-                color = COLORS.ALLY_INDIRECT; opacity = 1; 
-            } else { 
-                color = COLORS.DEFAULT_LAND; opacity = 0.9; 
-            }
-        }
-        
-        // --- Dynamic Outline Logic ---
-        let outlineColor = "#ffffff";
-        let outlineWeight = 0.2;
-        let outlineOpacity = 0.6;
-        
-        if (selectedCountryId) {
-            if (cId === selectedCountryId) {
-                outlineColor = "#000000";   // Black
-                outlineWeight = 1;
-                outlineOpacity = 0.6;
-            } else if (directAllies.includes(cId)) {
-                outlineColor = "#000000";   // Black
-                outlineWeight = 1;
-                outlineOpacity = 0.6;
-            } else if (directWars.includes(cId)) {
-                outlineColor = "#000000";   // Black
-                outlineWeight = 1;
-                outlineOpacity = 0.6;
-            } else if (customNaps.includes(cId)) {
-                outlineColor = "#000000";   // Black
-                outlineWeight = 1;
-                outlineOpacity = 0.6;
-            } else {
-                outlineColor = "#000000";   // Dim gray for neutrals
-                outlineWeight = 1;
-                outlineOpacity = 0.6;
-            }
-        }
-        
-        return { 
-            fillColor: color, 
-            fillOpacity: opacity, 
-            color: outlineColor,
-            weight: outlineWeight,
-            opacity: outlineOpacity
-        };
-    },
+        layers.regions = L.geoJson(infiniteWorld, {
+            style: (f) => {
+                const cId = f.properties.countryId;
+                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
+                let color = styleInfo ? styleInfo.properties.strokeColor : COLORS.NEUTRAL_UNSELECTED;
+                let opacity = 0.85;
+                
+                if (selectedCountryId) {
+                    const isManualNap = customNaps.includes(cId);
+                    if (cId === selectedCountryId) { color = COLORS.SELECTED; opacity = 1; }
+                    else if (isManualNap) { color = COLORS.NAP; opacity = 1; }
+                    else if (directAllies.includes(cId)) { color = COLORS.ALLY_DIRECT; opacity = 1; }
+                    else if (directWars.includes(cId)) { color = COLORS.WAR_DIRECT; opacity = 1; }
+                    else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { color = COLORS.BORDERLINE; opacity = 1; }
+                    else if (enemyAllies.includes(cId)) { color = COLORS.WAR_INDIRECT; opacity = 1; }
+                    else if (indirectAllies.includes(cId) && isExtended) { color = COLORS.ALLY_INDIRECT; opacity = 1; }
+                    else { color = COLORS.DEFAULT_LAND; opacity = 0.9; }
+                }
+                
+                // Dynamic outline using official strokeColor when no selection
+                let outlineColor = styleInfo ? styleInfo.properties.strokeColor : "#000000";
+                let outlineWeight = 1;
+                let outlineOpacity = 0.6;
+                
+                if (selectedCountryId) {
+                    if (cId === selectedCountryId) {
+                        outlineColor = "#FFD700"; outlineWeight = 2; outlineOpacity = 1;
+                    } else if (directAllies.includes(cId)) {
+                        outlineColor = "#2ecc71"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                    } else if (directWars.includes(cId)) {
+                        outlineColor = "#E63946"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                    } else if (customNaps.includes(cId)) {
+                        outlineColor = "#00d4ff"; outlineWeight = 1.5; outlineOpacity = 0.9;
+                    }
+                }
+                
+                return { 
+                    fillColor: color, 
+                    fillOpacity: opacity, 
+                    color: outlineColor,
+                    weight: outlineWeight,
+                    opacity: outlineOpacity
+                };
+            },
             onEachFeature: (f, layer) => {
                 layer.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
@@ -670,71 +805,74 @@ layers.regions = L.geoJson(infiniteWorld, {
             }
         }).addTo(map);
         
-        // --- Step 4: National borders (mesh) duplicated as well ---
-        // We need to generate the mesh for the base world, then offset it.
-        const baseMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => 
-            a !== b && a.properties.countryId !== b.properties.countryId
-        );
-        // Convert mesh to GeoJSON Feature
-        const meshFeature = {
-            type: 'Feature',
-            geometry: baseMesh
-        };
+        // Borders
+        const baseMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
+        const meshFeature = { type: 'Feature', geometry: baseMesh };
         const leftMesh = offsetGeoJSON(meshFeature, -360);
         const rightMesh = offsetGeoJSON(meshFeature, 360);
-        const infiniteMesh = {
-            type: 'FeatureCollection',
-            features: [leftMesh, meshFeature, rightMesh]
-        };
-        
+        const infiniteMesh = { type: 'FeatureCollection', features: [leftMesh, meshFeature, rightMesh] };
         layers.nationalBorders = L.geoJson(infiniteMesh, {
-            style: { 
-                color: "#ffffff", 
-                weight: 1.5, 
-                opacity: 0.8, 
-                interactive: false 
-            }
+            style: { color: "#ffffff", weight: 1.5, opacity: 0.8, interactive: false }
         }).addTo(map);
         
-        // --- Step 5: Coastlines (optional, but same approach) ---
+        // Coastlines - Simple white
         const baseCoastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
         const coastFeature = { type: 'Feature', geometry: baseCoastMesh };
         const leftCoast = offsetGeoJSON(coastFeature, -360);
         const rightCoast = offsetGeoJSON(coastFeature, 360);
-        const infiniteCoast = {
-            type: 'FeatureCollection',
-            features: [leftCoast, coastFeature, rightCoast]
-        };
+        const infiniteCoast = { type: 'FeatureCollection', features: [leftCoast, coastFeature, rightCoast] };
         layers.coastlines = L.geoJson(infiniteCoast, {
             style: { color: "#ffffff", weight: 1.5, interactive: false }
         }).addTo(map);
         
-        // Bring borders to front
         layers.nationalBorders.bringToFront();
         
-        // --- Step 6: Labels (show three copies as well) ---
-        layers.labels.clearLayers();
+        // Labels with dynamic color and zoom-based opacity
         if (showLabels) {
+            const currentZoom = map.getZoom();
             labelsData.forEach(l => {
-                if (l.coordinates) {
-                    // Add label at -360, 0, +360
-                    const baseLng = l.coordinates[0];
-                    const lat = l.coordinates[1];
-                    const name = l.properties.countryName;
-                    
-                    [-360, 0, 360].forEach(offset => {
-                        L.marker([lat, baseLng + offset], {
-                            icon: L.divIcon({ 
-                                className: 'nation-label', 
-                                html: `<span class="nation-name">${name}</span>`,
-                                iconSize: [100, 20]
-                            }),
-                            interactive: false,
-                            zIndexOffset: 1000
-                        }).addTo(layers.labels);
-                    });
+                if (!l.coordinates) return;
+                const baseLng = l.coordinates[0];
+                const lat = l.coordinates[1];
+                const name = l.properties.countryName;
+                const countryId = l.properties.countryId;
+                const styleInfo = labelsData.find(s => s.properties && s.properties.countryId === countryId);
+                
+                // Label color: white if a nation is selected, else official textColor
+                let labelColor = '#ffffff';
+                let fontSize = '10px';
+                if (styleInfo) {
+                    labelColor = selectedCountryId ? '#ffffff' : (styleInfo.properties.textColor || '#cccccc');
+                    fontSize = (styleInfo.properties.textSize || 10) + 'px';
                 }
+                
+                [-360, 0, 360].forEach(offset => {
+                    const marker = L.marker([lat, baseLng + offset], {
+                        icon: L.divIcon({ 
+                            className: 'nation-label', 
+                            html: `<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span>`,
+                            iconSize: [100, 20]
+                        }),
+                        interactive: false,
+                        zIndexOffset: 1000
+                    });
+                    
+                    const opacity = currentZoom < 3 ? 0 : (currentZoom < 5 ? 0.5 : 1);
+                    marker.setOpacity(opacity);
+                    marker.addTo(layers.labels);
+                });
             });
+            
+            if (!map._labelZoomHandler) {
+                map._labelZoomHandler = () => {
+                    const zoom = map.getZoom();
+                    layers.labels.eachLayer(marker => {
+                        const opacity = zoom < 3 ? 0 : (zoom < 5 ? 0.5 : 1);
+                        marker.setOpacity(opacity);
+                    });
+                };
+                map.on('zoomend', map._labelZoomHandler);
+            }
         }
     }
 
@@ -743,16 +881,15 @@ layers.regions = L.geoJson(infiniteWorld, {
         map = L.map('map', { 
             center: [20, 0], 
             zoom: 2.5, 
-            zoomControl: true,
-            zoomControlPosition: 'bottomright',
+            zoomControl: false,
             attributionControl: false,
             minZoom: 2,
-            // NO maxBounds, and worldCopyJump false for true infinite scroll
             worldCopyJump: false,
             maxBoundsViscosity: 0.0
         });
         layers.labels.addTo(map);
         await refreshData();
+        initPanelStates();
     }
     
     async function refreshData() {
@@ -763,15 +900,12 @@ layers.regions = L.geoJson(infiniteWorld, {
                 fetch('https://api4.warera.io/trpc/map.getMapData')
             ]);
             if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
-            
             const nationsData = await resN.json();
             const mapData = await resM.json();
             nazioniGlobal = nationsData.result.data;
             mapDataGlobal = mapData.result.data;
-            
             nationMap.clear();
             nazioniGlobal.forEach(n => nationMap.set(n._id, n));
-            
             popolaListe();
             renderMap();
             showToast('Strategic data loaded successfully', 'success');
@@ -802,7 +936,6 @@ layers.regions = L.geoJson(infiniteWorld, {
         if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
         if (customNaps.includes(found._id)) { showToast(`${found.name} is already in NAP list`, 'error'); return; }
         if (selectedCountryId && found._id === selectedCountryId) { showToast(`Cannot add selected nation to NAP list`, 'error'); return; }
-        
         customNaps.push(found._id);
         input.value = ''; 
         aggiornaListaNap(); 
@@ -871,14 +1004,9 @@ layers.regions = L.geoJson(infiniteWorld, {
         showToast('Reset complete', 'info');
     }
     
-    // Enter key support
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('cercaInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') cercaNazione();
-        });
-        document.getElementById('napInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') aggiungiNap();
-        });
+        document.getElementById('cercaInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') cercaNazione(); });
+        document.getElementById('napInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') aggiungiNap(); });
     });
     
     window.onload = init;
