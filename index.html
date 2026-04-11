@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>WarEra Diplomacy OS - Infinite Globe</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -381,6 +384,18 @@
         .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .selected-info { background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2); }
         .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
+                .custom-cluster div {
+            background: linear-gradient(135deg, #0062ff, #00d4ff) !important;
+            color: white !important;
+            font-weight: bold !important;
+            border: 2px solid white !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+        }
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background: transparent !important;
+        }
     </style>
 </head>
 <body>
@@ -409,7 +424,7 @@
             <div id="selected-display" class="selected-info" style="display: none;">
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <img id="selected-flag" src="" style="width: 24px; height: 16px; object-fit: cover; border-radius: 2px; display: none;">
+                    <span id="flag-wrapper" style="display: inline-block; vertical-align: middle;"></span>
                     <span class="selected-name" id="selected-name-display"></span>
                 </div>
             </div>
@@ -496,7 +511,7 @@
         regions: null, 
         nationalBorders: null, 
         coastlines: null, 
-        labels: L.layerGroup() 
+        labels: L.layerGroup()
     };
     
     const nationMap = new Map();
@@ -681,25 +696,55 @@
         updateStatsChip();
     }
     
-    function updateSelectedDisplay() {
+      function updateSelectedDisplay() {
         const display = document.getElementById('selected-display');
         const nameDisplay = document.getElementById('selected-name-display');
-        const flagImg = document.getElementById('selected-flag');
+        const flagWrapper = document.getElementById('flag-wrapper');
+        
         if (selectedCountryId) {
             const nation = nationMap.get(selectedCountryId);
             if (nation) {
                 nameDisplay.textContent = nation.name;
                 
-                // Find country code from countryLabels
-                const labelsData = mapDataGlobal?.countryLabels?.geometries || [];
-                const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
-                if (labelInfo && labelInfo.properties.countryCode) {
-                    const code = labelInfo.properties.countryCode.toLowerCase();
-                    flagImg.src = `https://flagcdn.com/24x18/${code}.png`;
-                    flagImg.style.display = 'block';
-                } else {
-                    flagImg.style.display = 'none';
+                // Get country code
+                const labelInfo = (mapDataGlobal?.countryLabels?.geometries || []).find(
+                    l => l.properties?.countryId === selectedCountryId
+                );
+                let code = labelInfo?.properties?.countryCode?.toLowerCase() || '';
+                if (!code && nation.code) {
+                    code = nation.code.toLowerCase();
                 }
+                
+                // Clear wrapper and create fresh image
+                flagWrapper.innerHTML = '';
+                
+                if (code) {
+                    const newImg = document.createElement('img');
+                    newImg.id = 'selected-flag';
+                    newImg.alt = `${nation.name} flag`;
+                    newImg.style.cssText = `
+                        display: inline-block !important;
+                        width: 24px !important;
+                        height: 16px !important;
+                        object-fit: contain !important;
+                        border-radius: 2px !important;
+                        border: 1px solid #00d4ff !important;
+                        background: #1a1a1a !important;
+                        vertical-align: middle !important;
+                    `;
+                    newImg.src = `https://app.warera.io/images/map/${code}.png?v=21`;
+                    
+                    newImg.onload = () => {
+                        newImg.style.border = '1px solid #2ecc71';
+                    };
+                    newImg.onerror = () => {
+                        newImg.style.border = '1px solid #ff4747';
+                        newImg.style.backgroundColor = '#ff4747';
+                    };
+                    
+                    flagWrapper.appendChild(newImg);
+                }
+                
                 display.style.display = 'block';
             }
         } else {
@@ -708,8 +753,19 @@
     }
 
     // ---------- MAP RENDERING ----------
-    function renderMap() {
+     function renderMap() {
         if (!mapDataGlobal) return;
+        
+        // Collision detection: grid of screen positions to avoid overlapping labels
+        const labelGrid = new Set();
+        const GRID_SIZE = 60; // pixels – increase for more spacing between labels
+        
+        const getScreenKey = (lat, lng) => {
+            const point = map.latLngToContainerPoint([lat, lng]);
+            const gridX = Math.floor(point.x / GRID_SIZE);
+            const gridY = Math.floor(point.y / GRID_SIZE);
+            return `${gridX},${gridY}`;
+        };
         
         updateDynamicLegend();
         updateStats();
@@ -827,50 +883,90 @@
         
         layers.nationalBorders.bringToFront();
         
-        // Labels with dynamic color and zoom-based opacity
+        // Labels – clean zoom‑based visibility (no clusters, like official WarEra)
         if (showLabels) {
             const currentZoom = map.getZoom();
+            
+            // Visibility filter: show labels based on zoom level
+            const shouldShowLabel = (props) => {
+                const flagSize = props.flagSize || 0.2;
+                if (currentZoom >= 4) return true;                  // zoom 4+ : all labels
+                if (currentZoom >= 3) return flagSize >= 0.15;      // zoom 3 : most nations
+                if (currentZoom >= 2.5) return flagSize >= 0.18;    // zoom 2.5 : major nations
+                if (currentZoom >= 2) return flagSize >= 0.25;      // zoom 2 : important nations
+                return false;
+            };
+            // Font scaling – slightly larger when zoomed out for readability
+            const getScaledFontSize = (baseSize) => {
+                const base = baseSize || 10;
+                let scale = 1.0;
+                if (currentZoom < 4) scale = 1.2;
+                else if (currentZoom < 5) scale = 1.0;
+                else scale = 0.9;
+                return Math.round(base * scale) + 'px';
+            };
+            
             labelsData.forEach(l => {
                 if (!l.coordinates) return;
+                if (!shouldShowLabel(l.properties)) return;
+                
                 const baseLng = l.coordinates[0];
                 const lat = l.coordinates[1];
                 const name = l.properties.countryName;
                 const countryId = l.properties.countryId;
                 const styleInfo = labelsData.find(s => s.properties && s.properties.countryId === countryId);
                 
-                // Label color: white if a nation is selected, else official textColor
                 let labelColor = '#ffffff';
-                let fontSize = '10px';
+                let baseTextSize = 10;
                 if (styleInfo) {
                     labelColor = selectedCountryId ? '#ffffff' : (styleInfo.properties.textColor || '#cccccc');
-                    fontSize = (styleInfo.properties.textSize || 10) + 'px';
+                    baseTextSize = styleInfo.properties.textSize || 10;
+                }
+                const fontSize = getScaledFontSize(baseTextSize);
+                
+                // Country code for flag
+                let code = styleInfo?.properties?.countryCode?.toLowerCase() || '';
+                if (!code) {
+                    const nation = nazioniGlobal.find(n => n._id === countryId);
+                    if (nation && nation.code) code = nation.code.toLowerCase();
                 }
                 
+                // Flag dimensions – scale with zoom
+                let flagScale = 1.0;
+                if (currentZoom < 4) flagScale = 1.3;
+                else if (currentZoom < 5) flagScale = 1.0;
+                else flagScale = 0.9;
+                const flagWidth = Math.round(16 * flagScale);
+                const flagHeight = Math.round(11 * flagScale);
+                
+                const flagHtml = code 
+                    ? `<img src="https://app.warera.io/images/map/${code}.png?v=21" style="width: ${flagWidth}px; height: ${flagHeight}px; margin-right: 4px; vertical-align: middle; border-radius: 1px; border: 1px solid rgba(255,255,255,0.3);" onerror="this.style.display='none'">` 
+                    : '';
+                
+                // For infinite world, add three copies
                 [-360, 0, 360].forEach(offset => {
-                    const marker = L.marker([lat, baseLng + offset], {
-                        icon: L.divIcon({ 
-                            className: 'nation-label', 
-                            html: `<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span>`,
-                            iconSize: [100, 20]
-                        }),
-                        interactive: false,
-                        zIndexOffset: 1000
-                    });
-                    
-                    const opacity = currentZoom < 3 ? 0 : (currentZoom < 5 ? 0.5 : 1);
-                    marker.setOpacity(opacity);
-                    marker.addTo(layers.labels);
+                    const lng = baseLng + offset;
+                    // Check collision – only add if grid cell is free
+                    const key = getScreenKey(lat, lng);
+                    if (!labelGrid.has(key)) {
+                        labelGrid.add(key);
+                        const marker = L.marker([lat, lng], {
+                            icon: L.divIcon({ 
+                                className: 'nation-label', 
+                                html: `<div style="display: flex; align-items: center; gap: 4px;">${flagHtml}<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span></div>`,
+                                iconSize: undefined
+                            }),
+                            interactive: false,
+                            zIndexOffset: 1000
+                        });
+                        marker.addTo(layers.labels);
+                    }
                 });
             });
             
+            // Update labels when zoom changes
             if (!map._labelZoomHandler) {
-                map._labelZoomHandler = () => {
-                    const zoom = map.getZoom();
-                    layers.labels.eachLayer(marker => {
-                        const opacity = zoom < 3 ? 0 : (zoom < 5 ? 0.5 : 1);
-                        marker.setOpacity(opacity);
-                    });
-                };
+                map._labelZoomHandler = () => renderMap();
                 map.on('zoomend', map._labelZoomHandler);
             }
         }
@@ -884,6 +980,7 @@
             zoomControl: false,
             attributionControl: false,
             minZoom: 2,
+            maxZoom: 8,                // ← Required for MarkerCluster
             worldCopyJump: false,
             maxBoundsViscosity: 0.0
         });
