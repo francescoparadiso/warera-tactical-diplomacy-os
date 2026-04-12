@@ -704,7 +704,7 @@ function drawLabels() {
         // Show labels at all zoom levels.
         // At low zoom only show the biggest nations to avoid clutter.
         const minZoom = map.getMinZoom();
-        if (zoom < minZoom + 0.5 && flagSize < 0.25) return;  // very zoomed out: only giants
+        //if (zoom < minZoom + 1.5 && flagSize < 0.25) return;  // very zoomed out: only giants
         if (zoom < 2.5 && flagSize < 0.15) return;             // zoomed out: large nations
         if (zoom < 3.5 && flagSize < 0.08) return;             // mid zoom: skip tiny states
 
@@ -957,7 +957,7 @@ async function init() {
         },
         center: [0, 20],
         zoom: 2,
-        minZoom: 1.5,
+        minZoom: 1.7,
         maxZoom: 8,
         renderWorldCopies: true,
         attributionControl: false,
