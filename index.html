@@ -94,7 +94,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            cursor: pointer;
+            cursor: pointer;          /* già presente */
             user-select: none;
         }
         .panel-content {
@@ -433,10 +433,53 @@ function buildBlocMap() {
 // ============================================================
 // PANEL / UI HELPERS
 // ============================================================
-function togglePanel(panelId) { /* invariato */ }
-function initPanelStates() { /* invariato */ }
-function updateStatsChip() { /* invariato */ }
-function toggleStatsDetails() { /* invariato */ }
+function togglePanel(panelId) {
+    if (window.innerWidth > 768) return;
+    const content = document.getElementById(panelId);
+    const side = panelId.split('-')[1];
+    const icon = document.getElementById('icon-' + side);
+    if (!content || !icon) return;
+    
+    const isNowCollapsed = !content.classList.contains('collapsed');
+    if (isNowCollapsed) {
+        content.classList.add('collapsed');
+        icon.classList.add('collapsed');
+    } else {
+        content.classList.remove('collapsed');
+        icon.classList.remove('collapsed');
+    }
+    localStorage.setItem(panelId + '-collapsed', isNowCollapsed);
+}
+function initPanelStates() {
+    if (window.innerWidth > 768) return;
+    ['panel-left', 'panel-right'].forEach(id => {
+        const content = document.getElementById(id);
+        const side = id.split('-')[1];
+        const icon = document.getElementById('icon-' + side);
+        if (!content || !icon) return;
+        const saved = localStorage.getItem(id + '-collapsed');
+        if (saved === 'true') {
+            content.classList.add('collapsed');
+            icon.classList.add('collapsed');
+        } else {
+            content.classList.remove('collapsed');
+            icon.classList.remove('collapsed');
+        }
+    });
+}
+function updateStatsChip() {
+    document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
+    document.getElementById('chip-wars').textContent   = document.getElementById('stats-wars').textContent;
+    document.getElementById('chip-naps').textContent   = document.getElementById('stats-naps').textContent;
+}
+
+function toggleStatsDetails() {
+    const name  = document.getElementById('selected-name-display').textContent || 'No selection';
+    const allies = document.getElementById('stats-allies').textContent;
+    const wars   = document.getElementById('stats-wars').textContent;
+    const naps   = document.getElementById('stats-naps').textContent;
+    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
+}
 function showToast(message, type = 'info') { /* invariato */ }
 function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
 function hideLoading() {
