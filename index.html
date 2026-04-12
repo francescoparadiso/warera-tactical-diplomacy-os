@@ -3,47 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>WarEra Diplomacy OS - Infinite Globe</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
-        <!-- Font ufficiale WarEra -->
+    <title>WarEra Diplomacy OS - MapLibre</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
     <style>
         * { box-sizing: border-box; }
-        body { 
-            margin: 0; 
-            background: #000; 
-            color: white; 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-            overflow: hidden; 
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            overflow: hidden;
         }
-        #map { 
-            height: 100vh; 
-            width: 100vw; 
-            background: #000000 !important;   /* acqua ufficiale WarEra */
+        #map {
+            height: 100vh;
+            width: 100vw;
         }
-        /* Loading Overlay */
+
+        /* Loading */
         #loading-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.92);
             z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: opacity 0.3s;
         }
-        .loader {
-            text-align: center;
-            color: #00d4ff;
-        }
+        .loader { text-align: center; color: #00d4ff; }
         .loader-spinner {
-            width: 50px;
-            height: 50px;
+            width: 50px; height: 50px;
             border: 3px solid #333;
             border-top-color: #00d4ff;
             border-radius: 50%;
@@ -51,11 +43,11 @@
             margin: 0 auto 20px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        /* Toast Notifications */
+
+        /* Toast */
         #toast-container {
             position: fixed;
-            bottom: 110px;
-            right: 20px;
+            bottom: 110px; right: 20px;
             z-index: 10000;
             display: flex;
             flex-direction: column;
@@ -76,19 +68,15 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        /* UI Base */
-        .overlay { 
-            position: absolute; 
-            z-index: 1000; 
-            pointer-events: none; 
-            width: auto; 
-        }
-        .panel { 
-            background: rgba(10, 10, 10, 0.95); 
-            border: 1px solid #333; 
-            padding: 16px; 
-            border-radius: 12px; 
-            pointer-events: auto; 
+
+        /* Panels */
+        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+        .panel {
+            background: rgba(10,10,10,0.95);
+            border: 1px solid #333;
+            padding: 16px;
+            border-radius: 12px;
+            pointer-events: auto;
             box-shadow: 0 8px 32px rgba(0,0,0,0.8);
             backdrop-filter: blur(10px);
         }
@@ -96,18 +84,11 @@
         #top-right { top: 20px; right: 20px; width: 320px; }
         #legend-container { bottom: 30px; left: 20px; }
         #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
-        .stats-content {
-            display: flex;
-            gap: 15px;
-            font-size: 11px;
-            color: #aaa;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+
+        .stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-item { display: flex; flex-direction: column; align-items: center; }
         .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
-        
-        /* Collapsible Panel Behavior */
+
         .panel-header {
             display: flex;
             align-items: center;
@@ -125,32 +106,15 @@
             margin-top: 0 !important;
             pointer-events: none;
         }
-        .collapse-icon {
-            font-size: 18px;
-            color: #00d4ff;
-            transition: transform 0.3s;
-        }
-        .collapse-icon.collapsed {
-            transform: rotate(-90deg);
-        }
-        /* Desktop: panels always expanded */
+        .collapse-icon { font-size: 18px; color: #00d4ff; transition: transform 0.3s; }
+        .collapse-icon.collapsed { transform: rotate(-90deg); }
+
         @media (min-width: 769px) {
-            .panel-header {
-                cursor: default;
-                pointer-events: none;
-            }
-            .collapse-icon {
-                display: none;
-            }
-            .panel-content {
-                max-height: none !important;
-                opacity: 1 !important;
-                margin-top: 12px !important;
-                pointer-events: auto !important;
-            }
+            .panel-header { cursor: default; pointer-events: none; }
+            .collapse-icon { display: none; }
+            .panel-content { max-height: none !important; opacity: 1 !important; margin-top: 12px !important; pointer-events: auto !important; }
         }
 
-        /* Mobile Stats Chip */
         #stats-chip {
             display: none;
             background: rgba(10,10,10,0.95);
@@ -161,20 +125,9 @@
             pointer-events: auto;
             cursor: pointer;
         }
-        .stats-chip-content {
-            display: flex;
-            gap: 20px;
-            font-size: 12px;
-        }
-        .stats-chip-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .stats-chip-value {
-            color: #00d4ff;
-            font-weight: bold;
-        }
+        .stats-chip-content { display: flex; gap: 20px; font-size: 12px; }
+        .stats-chip-item { display: flex; align-items: center; gap: 6px; }
+        .stats-chip-value { color: #00d4ff; font-weight: bold; }
 
         @media (max-width: 768px) {
             #top-left, #top-right { left: 10px; right: 10px; width: calc(100% - 20px); max-width: none; }
@@ -182,194 +135,95 @@
             #top-right { top: auto; bottom: 80px; max-height: 35vh; overflow-y: visible; }
             #legend-container { bottom: 10px; left: 10px; width: auto; }
             #stats-bar { display: none; }
-            #stats-chip {
-                display: block;
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                z-index: 1001;
-            }
-            .panel {
-                padding: 12px;
-            }
-            .panel-content {
-                max-height: 300px;
-            }
-            #top-left .panel-content,
-            #top-right .panel-content {
-                margin-top: 12px;
-            }
-            .search-container,
-            .nap-input-container {
-                flex-wrap: wrap;
-            }
-            .switch-label { font-size: 12px; }
+            #stats-chip { display: block; position: fixed; bottom: 20px; right: 20px; z-index: 1001; }
+            .panel { padding: 12px; }
+            .panel-content { max-height: 300px; }
+            #top-left .panel-content, #top-right .panel-content { margin-top: 12px; }
             input[type="text"], button { padding: 12px; font-size: 14px; }
         }
 
-        .options-menu { 
-            margin-top: 16px; 
-            border-top: 1px solid #333; 
-            padding-top: 16px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 12px; 
+        .options-menu {
+            margin-top: 16px;
+            border-top: 1px solid #333;
+            padding-top: 16px;
+            display: flex; flex-direction: column; gap: 12px;
         }
-        .switch-container { 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            gap: 10px; 
-            cursor: pointer; 
-            padding: 6px 0; 
+        .switch-container {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            cursor: pointer; padding: 6px 0;
         }
-        .switch-label { 
-            font-size: 11px; 
-            color: #aaa; 
-            text-transform: uppercase; 
-            font-weight: 600; 
-            letter-spacing: 0.5px; 
-        }
-        .switch { 
-            position: relative; 
-            display: inline-block; 
-            width: 44px; 
-            height: 24px; 
-        }
+        .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { 
-            position: absolute; 
-            cursor: pointer; 
-            top: 0; left: 0; right: 0; bottom: 0; 
-            background-color: #333; 
-            transition: .3s; 
-            border-radius: 34px; 
-            border: 1px solid #444; 
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444;
         }
-        .slider:before { 
-            position: absolute; 
-            content: ""; 
-            height: 18px; 
-            width: 18px; 
-            left: 3px; 
-            bottom: 2px; 
-            background-color: white; 
-            transition: .3s; 
-            border-radius: 50%; 
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%;
         }
-        input:checked + .slider { 
-            background: linear-gradient(135deg, #0062ff, #00d4ff); 
-            border-color: #00d4ff; 
-        }
+        input:checked + .slider { background: linear-gradient(135deg, #0062ff, #00d4ff); border-color: #00d4ff; }
         input:checked + .slider:before { transform: translateX(20px); }
-        .legend-content { 
-            transition: opacity 0.3s ease, transform 0.3s ease; 
-            transform-origin: bottom left; 
+
+        .legend-content {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform-origin: bottom left;
             margin-bottom: 12px;
             min-width: 200px;
         }
-        .legend-content.hidden { 
-            opacity: 0; 
-            transform: scale(0.9) translateY(10px); 
-            pointer-events: none; 
-            display: none; 
+        .legend-content.hidden {
+            opacity: 0; transform: scale(0.9) translateY(10px);
+            pointer-events: none; display: none;
         }
-        .legend-item { 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-            font-size: 11px; 
-            margin-bottom: 8px; 
-            text-transform: uppercase; 
-            font-weight: 600; 
-        }
-        .dot { 
-            width: 16px; 
-            height: 16px; 
-            border-radius: 50%; 
-            border: 2px solid rgba(255,255,255,0.3); 
-            flex-shrink: 0; 
-        }
-        .toggle-btn { 
-            width: 44px; 
-            height: 44px; 
-            background: rgba(20,20,20,0.95); 
-            border: 1px solid #444; 
-            color: #00d4ff; 
-            border-radius: 50%; 
-            cursor: pointer; 
-            font-size: 20px;
-            font-weight: bold;
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            pointer-events: auto;
-            backdrop-filter: blur(10px);
-            transition: all 0.2s;
+        .legend-item { display: flex; align-items: center; gap: 12px; font-size: 11px; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+        .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }
+
+        .toggle-btn {
+            width: 44px; height: 44px;
+            background: rgba(20,20,20,0.95);
+            border: 1px solid #444; color: #00d4ff; border-radius: 50%;
+            cursor: pointer; font-size: 20px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; backdrop-filter: blur(10px); transition: all 0.2s;
         }
         .toggle-btn:hover { background: #2a2a2a; border-color: #00d4ff; }
-        input[type="text"], button { 
-            background: #1a1a1a; 
-            border: 1px solid #444; 
-            color: white; 
-            padding: 10px 12px; 
-            border-radius: 8px; 
-            font-size: 13px; 
-            width: 100%; 
-            box-sizing: border-box;
-            transition: all 0.2s;
+
+        input[type="text"], button {
+            background: #1a1a1a; border: 1px solid #444; color: white;
+            padding: 10px 12px; border-radius: 8px; font-size: 13px;
+            width: 100%; box-sizing: border-box; transition: all 0.2s;
         }
         input[type="text"]:focus { outline: none; border-color: #00d4ff; background: #222; }
-        button { 
-            cursor: pointer; 
-            background: linear-gradient(135deg, #0062ff, #0088ff);
-            border: none; 
-            font-weight: 600; 
-            margin-top: 6px; 
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        button {
+            cursor: pointer; background: linear-gradient(135deg, #0062ff, #0088ff);
+            border: none; font-weight: 600; margin-top: 6px;
+            text-transform: uppercase; letter-spacing: 0.5px;
             transition: transform 0.2s, box-shadow 0.2s;
         }
         button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,98,255,0.3); }
         button:active { transform: translateY(0); }
         .btn-reset { background: #333; }
         .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
-        
-        /* Nation Labels */
-        .nation-label {
-            background: transparent !important;
-            border: none !important;
-            pointer-events: none !important;
-            transition: opacity 0.2s ease;
+
+        /* MapLibre popup custom */
+        .maplibregl-popup-content {
+            background: rgba(10,10,10,0.95) !important;
+            color: white !important;
+            border: 1px solid #333 !important;
+            border-radius: 8px !important;
+            padding: 10px 14px !important;
+            font-size: 13px !important;
         }
-        .nation-name { 
-            font-family: 'JetBrains Mono', monospace !important;
-            font-weight: 800 !important;
-            text-transform: uppercase; 
-            text-shadow: 0 0 4px #000, 0 0 8px #000;
-            white-space: nowrap;
-            letter-spacing: 0.3px;
-        }
-        .nap-item { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            background: #1a1a1a; 
-            padding: 10px 14px; 
-            margin-top: 8px; 
-            border-left: 4px solid #00d4ff; 
-            border-radius: 6px; 
-            font-size: 13px;
+        .maplibregl-popup-tip { border-top-color: #333 !important; }
+
+        .nap-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #1a1a1a; padding: 10px 14px; margin-top: 8px;
+            border-left: 4px solid #00d4ff; border-radius: 6px; font-size: 13px;
             animation: slideIn 0.2s ease;
         }
-        .remove-nap { 
-            color: #ff4747; 
-            cursor: pointer; 
-            font-weight: bold; 
-            font-size: 18px; 
-            padding: 0 4px;
-            transition: transform 0.2s;
-        }
+        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0 4px; transition: transform 0.2s; }
         .remove-nap:hover { transform: scale(1.2); }
         .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
         .section-title strong { font-size: 13px; color: #00d4ff; letter-spacing: 0.5px; }
@@ -384,20 +238,15 @@
         #napList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
         #napList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
         .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .selected-info { background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2); }
+        .selected-info {
+            background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px;
+            margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2);
+        }
         .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
-                .custom-cluster div {
-            background: linear-gradient(135deg, #0062ff, #00d4ff) !important;
-            color: white !important;
-            font-weight: bold !important;
-            border: 2px solid white !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
-        }
-        .marker-cluster-small,
-        .marker-cluster-medium,
-        .marker-cluster-large {
-            background: transparent !important;
-        }
+
+        /* MapLibre ctrl hide */
+        .maplibregl-ctrl-bottom-left,
+        .maplibregl-ctrl-bottom-right { display: none !important; }
     </style>
 </head>
 <body>
@@ -412,13 +261,13 @@
 
 <datalist id="nazioniList"></datalist>
 
-<!-- Main UI -->
+<!-- Top Left Panel -->
 <div id="top-left" class="overlay">
     <div class="panel">
         <div class="panel-header" onclick="togglePanel('panel-left')">
             <div class="section-title">
                 <strong>⚔️ WARERA DIPLOMACY OS</strong>
-                <span class="badge">v2.0</span>
+                <span class="badge">v3.0</span>
             </div>
             <span class="collapse-icon" id="icon-left">▼</span>
         </div>
@@ -446,7 +295,7 @@
                 <label class="switch-container">
                     <span class="switch-label">🏷️ Show Nation Names</span>
                     <div class="switch">
-                        <input type="checkbox" id="checkLabels" checked onchange="renderMap()">
+                        <input type="checkbox" id="checkLabels" checked onchange="toggleLabels()">
                         <span class="slider"></span>
                     </div>
                 </label>
@@ -455,6 +304,7 @@
     </div>
 </div>
 
+<!-- Top Right Panel -->
 <div id="top-right" class="overlay">
     <div class="panel">
         <div class="panel-header" onclick="togglePanel('panel-right')">
@@ -476,11 +326,13 @@
     </div>
 </div>
 
+<!-- Legend -->
 <div id="legend-container" class="overlay">
     <div id="dynamic-legend" class="panel legend-content hidden"></div>
     <div class="toggle-btn" onclick="toggleLegend()">ℹ️</div>
 </div>
 
+<!-- Stats Bar -->
 <div id="stats-bar" class="overlay">
     <div class="panel">
         <div class="stats-content">
@@ -503,618 +355,752 @@
 <div id="map"></div>
 
 <script>
-    // ---------- GLOBAL STATE ----------
-    let map;
-    let nazioniGlobal = [];
-    let mapDataGlobal = null;
-    let selectedCountryId = null;
-    let customNaps = [];
-    let layers = { 
-        regions: null, 
-        nationalBorders: null, 
-        coastlines: null, 
-        labels: L.layerGroup()
-    };
-    
-    const nationMap = new Map();
-    
-    // Color palette
-    const COLORS = {
-        SELECTED: "#ffcc00",
-        WAR_DIRECT: "#ff0000",
-        WAR_INDIRECT: "#b30000",
-        ALLY_DIRECT: "#2ecc71",
-        ALLY_INDIRECT: "#145a32",
-        BORDERLINE: "#ff9100",
-        NAP: "#00d4ff",
-        DEFAULT_LAND: "#4a4e5a",
-        NEUTRAL_UNSELECTED: "#3a3d46"
-    };
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let map;
+let nazioniGlobal = [];
+let mapDataGlobal = null;
+let selectedCountryId = null;
+let customNaps = [];
+const nationMap = new Map();
 
-    // ---------- PANEL TOGGLING ----------
-    function togglePanel(panelId) {
-        if (window.innerWidth > 768) return;
-        const content = document.getElementById(panelId);
-        const icon = document.getElementById('icon-' + panelId.split('-')[1]);
+// Loaded once, used to build MapLibre sources
+let baseGeoJSON = null;      // FeatureCollection of regions (center copy)
+let labelsData = [];         // array of point geometries from TopoJSON
+
+const COLORS = {
+    SELECTED:         "#ffcc00",
+    WAR_DIRECT:       "#ff0000",
+    WAR_INDIRECT:     "#b30000",
+    ALLY_DIRECT:      "#2ecc71",
+    ALLY_INDIRECT:    "#145a32",
+    BORDERLINE:       "#ff9100",
+    NAP:              "#00d4ff",
+    DEFAULT_LAND:     "#4a4e5a",
+    NEUTRAL_UNSELECTED:"#3a3d46",
+    OCEAN:            "#000000"
+};
+
+// Source/layer IDs used in MapLibre
+const SRC_REGIONS = 'regions-src';
+const SRC_BORDERS = 'borders-src';
+const SRC_LABELS  = 'labels-src';
+
+const LYR_FILL    = 'regions-fill';
+const LYR_OUTLINE = 'regions-outline';
+const LYR_COAST   = 'regions-coast';
+const LYR_BORDER  = 'borders-line';
+const LYR_LABEL_TXT = 'labels-text';
+const LYR_LABEL_ICO = 'labels-icon';
+
+// ============================================================
+// PANEL / UI HELPERS
+// ============================================================
+function togglePanel(panelId) {
+    if (window.innerWidth > 768) return;
+    const content = document.getElementById(panelId);
+    const side = panelId.split('-')[1];
+    const icon = document.getElementById('icon-' + side);
+    if (!content || !icon) return;
+    content.classList.toggle('collapsed');
+    icon.classList.toggle('collapsed');
+    localStorage.setItem(panelId + '-collapsed', content.classList.contains('collapsed'));
+}
+
+function initPanelStates() {
+    if (window.innerWidth > 768) return;
+    ['panel-left', 'panel-right'].forEach(id => {
+        const content = document.getElementById(id);
+        const side = id.split('-')[1];
+        const icon = document.getElementById('icon-' + side);
         if (!content || !icon) return;
-        content.classList.toggle('collapsed');
-        icon.classList.toggle('collapsed');
-        localStorage.setItem(panelId + '-collapsed', content.classList.contains('collapsed'));
-    }
-    
-    function initPanelStates() {
-        if (window.innerWidth > 768) return;
-        ['panel-left', 'panel-right'].forEach(id => {
-            const content = document.getElementById(id);
-            const icon = document.getElementById('icon-' + id.split('-')[1]);
-            if (!content || !icon) return;
-            const isCollapsed = localStorage.getItem(id + '-collapsed') === 'true';
-            if (isCollapsed) {
-                content.classList.add('collapsed');
-                icon.classList.add('collapsed');
-            }
-        });
-    }
-    
-    function updateStatsChip() {
-        document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
-        document.getElementById('chip-wars').textContent = document.getElementById('stats-wars').textContent;
-        document.getElementById('chip-naps').textContent = document.getElementById('stats-naps').textContent;
-    }
-    
-    function toggleStatsDetails() {
-        const selectedName = document.getElementById('selected-name-display').textContent || 'No selection';
-        const allies = document.getElementById('stats-allies').textContent;
-        const wars = document.getElementById('stats-wars').textContent;
-        const naps = document.getElementById('stats-naps').textContent;
-        showToast(`${selectedName} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
-    }
-
-    // ---------- UTILITIES ----------
-    function showToast(message, type = 'info') {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-    
-    function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
-    function hideLoading() {
-        document.getElementById('loading-overlay').style.opacity = '0';
-        setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 300);
-    }
-    
-    function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
-
-    // ---------- GEOJSON OFFSET ----------
-    function offsetCoords(coords, lngOffset) {
-        if (typeof coords[0] === 'number') {
-            return [coords[0] + lngOffset, coords[1]];
+        if (localStorage.getItem(id + '-collapsed') === 'true') {
+            content.classList.add('collapsed');
+            icon.classList.add('collapsed');
         }
-        return coords.map(c => offsetCoords(c, lngOffset));
-    }
-    
-    function offsetGeometry(geometry, lngOffset) {
-        if (!geometry) return geometry;
-        const newGeom = { ...geometry };
-        if (geometry.type === 'Polygon') {
-            newGeom.coordinates = offsetCoords(geometry.coordinates, lngOffset);
-        } else if (geometry.type === 'MultiPolygon') {
-            newGeom.coordinates = geometry.coordinates.map(poly => offsetCoords(poly, lngOffset));
-        } else if (geometry.type === 'LineString') {
-            if (!geometry.coordinates) return geometry;
-            newGeom.coordinates = geometry.coordinates.map(coord => [coord[0] + lngOffset, coord[1]]);
-        } else if (geometry.type === 'MultiLineString') {
-            if (!geometry.coordinates) return geometry;
-            newGeom.coordinates = geometry.coordinates.map(line => line.map(coord => [coord[0] + lngOffset, coord[1]]));
-        }
-        return newGeom;
-    }
-    
-    function offsetGeoJSON(geojson, lngOffset) {
-        if (!geojson) return null;
-        const cloned = JSON.parse(JSON.stringify(geojson));
-        if (cloned.type === 'FeatureCollection') {
-            cloned.features = cloned.features.map(f => {
-                f.geometry = offsetGeometry(f.geometry, lngOffset);
-                return f;
+    });
+}
+
+function updateStatsChip() {
+    document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
+    document.getElementById('chip-wars').textContent   = document.getElementById('stats-wars').textContent;
+    document.getElementById('chip-naps').textContent   = document.getElementById('stats-naps').textContent;
+}
+
+function toggleStatsDetails() {
+    const name  = document.getElementById('selected-name-display').textContent || 'No selection';
+    const allies= document.getElementById('stats-allies').textContent;
+    const wars  = document.getElementById('stats-wars').textContent;
+    const naps  = document.getElementById('stats-naps').textContent;
+    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
+function hideLoading() {
+    const el = document.getElementById('loading-overlay');
+    el.style.opacity = '0';
+    setTimeout(() => el.style.display = 'none', 300);
+}
+function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
+
+// ============================================================
+// DIPLOMACY HELPERS
+// ============================================================
+function getIndirectAllies(targetId) {
+    const target = nationMap.get(targetId);
+    if (!target || !target.allies) return [];
+    const indirect = new Set();
+    target.allies.forEach(allyId => {
+        const ally = nationMap.get(allyId);
+        if (ally && ally.allies) {
+            ally.allies.forEach(id => {
+                if (id !== targetId && !target.allies.includes(id)) indirect.add(id);
             });
-        } else if (cloned.type === 'Feature') {
-            cloned.geometry = offsetGeometry(cloned.geometry, lngOffset);
         }
-        return cloned;
-    }
-    
-    // ---------- DIPLOMACY HELPERS ----------
-    function getIndirectAllies(targetId) {
-        const target = nationMap.get(targetId);
-        if (!target || !target.allies) return [];
-        const indirect = new Set();
-        target.allies.forEach(allyId => {
-            const ally = nationMap.get(allyId);
-            if (ally && ally.allies) {
-                ally.allies.forEach(id => {
-                    if (id !== targetId && !target.allies.includes(id)) indirect.add(id);
-                });
-            }
-        });
-        return Array.from(indirect);
-    }
-    
-    function getEnemyAllies(targetId) {
-        const target = nationMap.get(targetId);
-        if (!target || !target.warsWith) return [];
-        const enemyAllies = new Set();
-        target.warsWith.forEach(enemyId => {
-            const enemy = nationMap.get(enemyId);
-            if (enemy && enemy.allies) {
-                enemy.allies.forEach(id => {
-                    if (id !== targetId) enemyAllies.add(id);
-                });
-            }
-        });
-        return Array.from(enemyAllies);
-    }
-    
-    // ---------- UI UPDATES ----------
-    function updateDynamicLegend() {
-        const legendBox = document.getElementById('dynamic-legend');
-        if (!selectedCountryId) {
-            legendBox.innerHTML = `
-                <div class="legend-item"><div class="dot" style="background: #555;"></div><span>NO SELECTION</span></div>
-                <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div><span>MANUAL NAP</span></div>
-            `;
-            return;
+    });
+    return Array.from(indirect);
+}
+
+function getEnemyAllies(targetId) {
+    const target = nationMap.get(targetId);
+    if (!target || !target.warsWith) return [];
+    const enemyAllies = new Set();
+    target.warsWith.forEach(enemyId => {
+        const enemy = nationMap.get(enemyId);
+        if (enemy && enemy.allies) {
+            enemy.allies.forEach(id => {
+                if (id !== targetId) enemyAllies.add(id);
+            });
         }
+    });
+    return Array.from(enemyAllies);
+}
+
+function getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
+    const isManualNap = customNaps.includes(cId);
+    if (!selectedCountryId) {
+        return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
+    }
+    if (cId === selectedCountryId)                              return COLORS.SELECTED;
+    if (isManualNap)                                            return COLORS.NAP;
+    if (directAllies.includes(cId))                             return COLORS.ALLY_DIRECT;
+    if (directWars.includes(cId))                               return COLORS.WAR_DIRECT;
+    if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) return COLORS.BORDERLINE;
+    if (enemyAllies.includes(cId))                              return COLORS.WAR_INDIRECT;
+    if (indirectAllies.includes(cId) && isExtended)             return COLORS.ALLY_INDIRECT;
+    return COLORS.DEFAULT_LAND;
+}
+
+// ============================================================
+// MAPLIBRE STYLE EXPRESSION HELPERS
+// ============================================================
+/**
+ * Builds a MapLibre match expression for fill-color based on current diplomacy state.
+ * Returns an expression array.
+ */
+function buildFillColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
+    // ['match', ['get', 'countryId'], id1, color1, id2, color2, ..., fallback]
+    const expr = ['match', ['get', 'countryId']];
+    const allIds = new Set([
+        ...Object.keys(styleMap),
+        ...directWars,
+        ...directAllies,
+        ...indirectAllies,
+        ...enemyAllies,
+        ...customNaps,
+        ...(selectedCountryId ? [selectedCountryId] : [])
+    ]);
+    allIds.forEach(cId => {
+        const color = getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
+        expr.push(cId, color);
+    });
+    expr.push(selectedCountryId ? COLORS.DEFAULT_LAND : COLORS.NEUTRAL_UNSELECTED);
+    return expr;
+}
+
+// ============================================================
+// LEGEND & STATS
+// ============================================================
+function updateDynamicLegend() {
+    const legendBox = document.getElementById('dynamic-legend');
+    if (!selectedCountryId) {
         legendBox.innerHTML = `
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.SELECTED};"></div><span>SELECTED NATION</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.NAP};"></div><span>MANUAL NAP</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_DIRECT};"></div><span>DIRECT WAR</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.WAR_INDIRECT};"></div><span>INDIRECT ENEMY</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_DIRECT};"></div><span>DIRECT ALLY</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.ALLY_INDIRECT};"></div><span>INDIRECT ALLY</span></div>
-            <div class="legend-item"><div class="dot" style="background: ${COLORS.DEFAULT_LAND}; border: 1px solid rgba(255,255,255,0.3);"></div><span>NEUTRAL</span></div>
+            <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
         `;
+        return;
     }
-    
-    function updateStats() {
-        if (!selectedCountryId) {
-            document.getElementById('stats-allies').textContent = '0';
-            document.getElementById('stats-wars').textContent = '0';
-            document.getElementById('stats-naps').textContent = customNaps.length;
-        } else {
-            const target = nationMap.get(selectedCountryId);
-            if (target) {
-                document.getElementById('stats-allies').textContent = (target.allies || []).length;
-                document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
-                document.getElementById('stats-naps').textContent = customNaps.length;
-            }
+    legendBox.innerHTML = `
+        <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_DIRECT}"></div><span>DIRECT WAR</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_INDIRECT}"></div><span>INDIRECT ENEMY</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_DIRECT}"></div><span>DIRECT ALLY</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
+    `;
+}
+
+function updateStats() {
+    if (!selectedCountryId) {
+        document.getElementById('stats-allies').textContent = '0';
+        document.getElementById('stats-wars').textContent  = '0';
+        document.getElementById('stats-naps').textContent  = customNaps.length;
+    } else {
+        const target = nationMap.get(selectedCountryId);
+        if (target) {
+            document.getElementById('stats-allies').textContent = (target.allies || []).length;
+            document.getElementById('stats-wars').textContent   = (target.warsWith || []).length;
+            document.getElementById('stats-naps').textContent   = customNaps.length;
         }
-        updateStatsChip();
     }
-    
-      function updateSelectedDisplay() {
-        const display = document.getElementById('selected-display');
-        const nameDisplay = document.getElementById('selected-name-display');
-        const flagWrapper = document.getElementById('flag-wrapper');
-        
-        if (selectedCountryId) {
-            const nation = nationMap.get(selectedCountryId);
-            if (nation) {
-                nameDisplay.textContent = nation.name;
-                
-                // Get country code
-                const labelInfo = (mapDataGlobal?.countryLabels?.geometries || []).find(
-                    l => l.properties?.countryId === selectedCountryId
-                );
-                let code = labelInfo?.properties?.countryCode?.toLowerCase() || '';
-                if (!code && nation.code) {
-                    code = nation.code.toLowerCase();
-                }
-                
-                // Clear wrapper and create fresh image
-                flagWrapper.innerHTML = '';
-                
-                if (code) {
-                    const newImg = document.createElement('img');
-                    newImg.id = 'selected-flag';
-                    newImg.alt = `${nation.name} flag`;
-                    newImg.style.cssText = `
-                        display: inline-block !important;
-                        width: 24px !important;
-                        height: 16px !important;
-                        object-fit: contain !important;
-                        border-radius: 2px !important;
-                        border: 1px solid #00d4ff !important;
-                        background: #1a1a1a !important;
-                        vertical-align: middle !important;
-                    `;
-                    newImg.src = `https://app.warera.io/images/map/${code}.png?v=21`;
-                    
-                    newImg.onload = () => {
-                        newImg.style.border = '1px solid #2ecc71';
-                    };
-                    newImg.onerror = () => {
-                        newImg.style.border = '1px solid #ff4747';
-                        newImg.style.backgroundColor = '#ff4747';
-                    };
-                    
-                    flagWrapper.appendChild(newImg);
-                }
-                
-                display.style.display = 'block';
-            }
-        } else {
-            display.style.display = 'none';
+    updateStatsChip();
+}
+
+function updateSelectedDisplay() {
+    const display     = document.getElementById('selected-display');
+    const nameDisplay = document.getElementById('selected-name-display');
+    const flagWrapper = document.getElementById('flag-wrapper');
+    if (!selectedCountryId) { display.style.display = 'none'; return; }
+    const nation = nationMap.get(selectedCountryId);
+    if (!nation) { display.style.display = 'none'; return; }
+    nameDisplay.textContent = nation.name;
+    const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
+    let code = labelInfo?.properties?.countryCode?.toLowerCase() || nation.code?.toLowerCase() || '';
+    flagWrapper.innerHTML = '';
+    if (code) {
+        const img = document.createElement('img');
+        img.alt = `${nation.name} flag`;
+        img.style.cssText = 'display:inline-block!important;width:24px!important;height:16px!important;object-fit:contain!important;border-radius:2px!important;border:1px solid #00d4ff!important;background:#1a1a1a!important;vertical-align:middle!important;';
+        img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
+        img.onload  = () => img.style.border = '1px solid #2ecc71';
+        img.onerror = () => { img.style.border = '1px solid #ff4747'; img.style.backgroundColor = '#ff4747'; };
+        flagWrapper.appendChild(img);
+    }
+    display.style.display = 'block';
+}
+
+// ============================================================
+// CORE MAP RENDER — only updates paint properties (fast)
+// ============================================================
+function renderMap() {
+    if (!map || !mapDataGlobal) return;
+
+    updateDynamicLegend();
+    updateStats();
+    updateSelectedDisplay();
+
+    const isExtended = document.getElementById('checkExtended').checked;
+    let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
+    if (selectedCountryId) {
+        const target = nationMap.get(selectedCountryId);
+        if (target) {
+            directWars     = target.warsWith || [];
+            directAllies   = target.allies   || [];
+            indirectAllies = getIndirectAllies(selectedCountryId);
+            enemyAllies    = getEnemyAllies(selectedCountryId);
         }
     }
 
-    // ---------- MAP RENDERING ----------
-     function renderMap() {
-        if (!mapDataGlobal) return;
-        
-        // Collision detection: grid of screen positions to avoid overlapping labels
-        const labelGrid = new Set();
-        const GRID_SIZE = 60; // pixels – increase for more spacing between labels
-        
-        const getScreenKey = (lat, lng) => {
-            const point = map.latLngToContainerPoint([lat, lng]);
-            const gridX = Math.floor(point.x / GRID_SIZE);
-            const gridY = Math.floor(point.y / GRID_SIZE);
-            return `${gridX},${gridY}`;
-        };
-        
-        updateDynamicLegend();
-        updateStats();
-        updateSelectedDisplay();
-        
-        const topoData = mapDataGlobal.map;
-        const labelsData = mapDataGlobal.countryLabels || 
-                         (topoData.objects.countryLabels ? topoData.objects.countryLabels.geometries : []);
-        
-        const isExtended = document.getElementById('checkExtended').checked;
-        const showLabels = document.getElementById('checkLabels').checked;
-        
-        if (layers.regions) map.removeLayer(layers.regions);
-        if (layers.nationalBorders) map.removeLayer(layers.nationalBorders);
-        if (layers.coastlines) map.removeLayer(layers.coastlines);
-        layers.labels.clearLayers();
-        
-        let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
-        if (selectedCountryId) {
-            const target = nationMap.get(selectedCountryId);
-            if (target) {
-                directWars = target.warsWith || [];
-                directAllies = target.allies || [];
-                indirectAllies = getIndirectAllies(selectedCountryId);
-                enemyAllies = getEnemyAllies(selectedCountryId);
-            }
-        }
-        
-        const baseWorld = topojson.feature(topoData, topoData.objects.regions);
-        const leftWorld = offsetGeoJSON(baseWorld, -360);
-        const centerWorld = baseWorld;
-        const rightWorld = offsetGeoJSON(baseWorld, 360);
-        const infiniteWorld = {
-            type: 'FeatureCollection',
-            features: [...leftWorld.features, ...centerWorld.features, ...rightWorld.features]
-        };
-        
-        layers.regions = L.geoJson(infiniteWorld, {
-            style: (f) => {
-                const cId = f.properties.countryId;
-                const styleInfo = labelsData.find(l => l.properties && l.properties.countryId === cId);
-                let color = styleInfo ? styleInfo.properties.strokeColor : COLORS.NEUTRAL_UNSELECTED;
-                let opacity = 0.85;
-                
-                if (selectedCountryId) {
-                    const isManualNap = customNaps.includes(cId);
-                    if (cId === selectedCountryId) { color = COLORS.SELECTED; opacity = 1; }
-                    else if (isManualNap) { color = COLORS.NAP; opacity = 1; }
-                    else if (directAllies.includes(cId)) { color = COLORS.ALLY_DIRECT; opacity = 1; }
-                    else if (directWars.includes(cId)) { color = COLORS.WAR_DIRECT; opacity = 1; }
-                    else if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) { color = COLORS.BORDERLINE; opacity = 1; }
-                    else if (enemyAllies.includes(cId)) { color = COLORS.WAR_INDIRECT; opacity = 1; }
-                    else if (indirectAllies.includes(cId) && isExtended) { color = COLORS.ALLY_INDIRECT; opacity = 1; }
-                    else { color = COLORS.DEFAULT_LAND; opacity = 0.9; }
-                }
-                
-                // Dynamic outline using official strokeColor when no selection
-                let outlineColor = styleInfo ? styleInfo.properties.strokeColor : "#000000";
-                let outlineWeight = 1;
-                let outlineOpacity = 0.6;
-                
-                if (selectedCountryId) {
-                    if (cId === selectedCountryId) {
-                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 1;
-                    } else if (directAllies.includes(cId)) {
-                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
-                    } else if (directWars.includes(cId)) {
-                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
-                    } else if (customNaps.includes(cId)) {
-                        outlineColor = "#ffffff"; outlineWeight = 0.8; outlineOpacity = 0.9;
-                    }
-                }
-                
-                return { 
-                    fillColor: color, 
-                    fillOpacity: opacity, 
-                    color: outlineColor,
-                    weight: outlineWeight,
-                    opacity: outlineOpacity
-                };
-            },
-            onEachFeature: (f, layer) => {
-                layer.on('click', (e) => {
-                    L.DomEvent.stopPropagation(e);
-                    const newId = f.properties.countryId;
-                    selectedCountryId = (selectedCountryId === newId) ? null : newId;
-                    renderMap();
-                    if (selectedCountryId) {
-                        const nation = nationMap.get(selectedCountryId);
-                        if (nation) showToast(`Selected: ${nation.name}`, 'info');
-                    }
-                });
-            }
-        }).addTo(map);
-        
-        // Borders
-        const baseMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
-        const meshFeature = { type: 'Feature', geometry: baseMesh };
-        const leftMesh = offsetGeoJSON(meshFeature, -360);
-        const rightMesh = offsetGeoJSON(meshFeature, 360);
-        const infiniteMesh = { type: 'FeatureCollection', features: [leftMesh, meshFeature, rightMesh] };
-        layers.nationalBorders = L.geoJson(infiniteMesh, {
-            style: { color: "#ffffff", weight: 0.8, opacity: 0.8, interactive: false }
-        }).addTo(map);
-        
-        // Coastlines - colore ufficiale WarEra
-        const baseCoastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
-        const coastFeature = { type: 'Feature', geometry: baseCoastMesh };
-        const leftCoast = offsetGeoJSON(coastFeature, -360);
-        const rightCoast = offsetGeoJSON(coastFeature, 360);
-        const infiniteCoast = { type: 'FeatureCollection', features: [leftCoast, coastFeature, rightCoast] };
-        layers.coastlines = L.geoJson(infiniteCoast, {
-            style: { color: "#ffffff", weight: 0.8, interactive: false }
-        }).addTo(map);
-        
-        layers.nationalBorders.bringToFront();
-        
-        // Labels – clean zoom‑based visibility (no clusters, like official WarEra)
-        if (showLabels) {
-            const currentZoom = map.getZoom();
-            
-            // Soglie ufficiali WarEra (da mappa.txt)
-            const shouldShowLabel = (props) => {
-                const flagSize = props.flagSize || 0.2;
-                if (currentZoom >= 4) return true;               // REGION level
-                if (currentZoom >= 3) return flagSize >= 0.12;   // FAR_REGION
-                if (currentZoom >= 2) return flagSize >= 0.15;   // COUNTRY
-                return false;
-            };
-            // Font scaling – slightly larger when zoomed out for readability
-            const getScaledFontSize = (baseSize) => {
-                const base = baseSize || 10;
-                let scale = 1.0;
-                if (currentZoom < 4) scale = 1.2;
-                else if (currentZoom < 5) scale = 1.0;
-                else scale = 0.9;
-                return Math.round(base * scale) + 'px';
-            };
-            
-            labelsData.forEach(l => {
-                if (!l.coordinates) return;
-                if (!shouldShowLabel(l.properties)) return;
-                
-                const baseLng = l.coordinates[0];
-                const lat = l.coordinates[1];
-                const name = l.properties.countryName;
-                const countryId = l.properties.countryId;
-                const styleInfo = labelsData.find(s => s.properties && s.properties.countryId === countryId);
-                
-                let labelColor = '#ffffff';
-                let baseTextSize = 10;
-                if (styleInfo) {
-                    labelColor = selectedCountryId ? '#ffffff' : (styleInfo.properties.textColor || '#cccccc');
-                    baseTextSize = styleInfo.properties.textSize || 10;
-                }
-                const fontSize = getScaledFontSize(baseTextSize);
-                
-                // Country code for flag
-                let code = styleInfo?.properties?.countryCode?.toLowerCase() || '';
-                if (!code) {
-                    const nation = nazioniGlobal.find(n => n._id === countryId);
-                    if (nation && nation.code) code = nation.code.toLowerCase();
-                }
-                
-                // Flag dimensions – scale with zoom
-                let flagScale = 1.0;
-                if (currentZoom < 4) flagScale = 1.3;
-                else if (currentZoom < 5) flagScale = 1.0;
-                else flagScale = 0.9;
-                const flagWidth = Math.round(16 * flagScale);
-                const flagHeight = Math.round(11 * flagScale);
-                
-                const flagHtml = code 
-                    ? `<img src="https://app.warera.io/images/map/${code}.png?v=21" style="width: ${flagWidth}px; height: ${flagHeight}px; margin-right: 4px; vertical-align: middle; border-radius: 1px; border: 1px solid rgba(255,255,255,0.3);" onerror="this.style.display='none'">` 
-                    : '';
-                
-                // For infinite world, add three copies
-                // Opacità fade tra zoom 2 e 3 (ufficiale)
-                let opacity = 1.0;
-                if (currentZoom < 3) {
-                    opacity = Math.max(0.3, (currentZoom - 2) * 0.7); // zoom 2 → 0.3, zoom 3 → 1.0
-                }
-                
-                [-360, 0, 360].forEach(offset => {
-                    const lng = baseLng + offset;
-                    // Check collision – only add if grid cell is free
-                    const key = getScreenKey(lat, lng);
-                    if (!labelGrid.has(key)) {
-                        labelGrid.add(key);
-                        const marker = L.marker([lat, lng], {
-                            icon: L.divIcon({ 
-                                className: 'nation-label', 
-                                html: `<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">${flagHtml}<span class="nation-name" style="color: ${labelColor}; font-size: ${fontSize};">${name}</span></div>`,
-                                iconSize: undefined
-                            }),
-                            interactive: false,
-                            zIndexOffset: 1000,
-                            opacity: opacity  // set initial opacity
-                        });
-                        marker.addTo(layers.labels);
-                    }
-                });
-            });
-            
-            // Update labels when zoom changes
-            if (!map._labelZoomHandler) {
-                map._labelZoomHandler = () => renderMap();
-                map.on('zoomend', map._labelZoomHandler);
-            }
-        }
+    // Build stroke-color map from labelsData
+    const styleMap = {};
+    labelsData.forEach(l => {
+        if (l.properties?.countryId && l.properties?.strokeColor)
+            styleMap[l.properties.countryId] = l.properties.strokeColor;
+    });
+
+    const fillExpr = buildFillColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
+
+    // Update fill layer paint
+    if (map.getLayer(LYR_FILL)) {
+        map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
+        map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
     }
 
-    // ---------- DATA FETCHING ----------
-    async function init() {
-        map = L.map('map', { 
-            center: [20, 0], 
-            zoom: 2.5, 
-            zoomControl: false,
-            attributionControl: false,
-            minZoom: 2,
-            maxZoom: 8,                // ← Required for MarkerCluster
-            worldCopyJump: false,
-            maxBoundsViscosity: 0.0
+    updateLabelColors();
+    toggleLabels();
+}
+
+// ============================================================
+// CANVAS LABEL OVERLAY — exact Leaflet divIcon behaviour in MapLibre
+// ============================================================
+let labelCanvas = null;
+let labelCtx = null;
+
+function initLabelCanvas() {
+    labelCanvas = document.createElement('canvas');
+    labelCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:500;';
+    map.getContainer().appendChild(labelCanvas);
+    labelCtx = labelCanvas.getContext('2d');
+    resizeLabelCanvas();
+    // Redraw on every map move/zoom
+    map.on('render', drawLabels);
+    window.addEventListener('resize', resizeLabelCanvas);
+}
+
+function resizeLabelCanvas() {
+    if (!labelCanvas) return;
+    const container = map.getContainer();
+    const r = window.devicePixelRatio || 1;
+    labelCanvas.width  = container.clientWidth  * r;
+    labelCanvas.height = container.clientHeight * r;
+    labelCanvas.style.width  = container.clientWidth  + 'px';
+    labelCanvas.style.height = container.clientHeight + 'px';
+    labelCtx.scale(r, r);
+}
+
+function toggleLabels() {
+    if (!labelCanvas) return;
+    const show = document.getElementById('checkLabels').checked;
+    labelCanvas.style.display = show ? 'block' : 'none';
+}
+
+function updateLabelColors() {
+    // no-op: canvas drawLabels reads selectedCountryId directly
+}
+
+function drawLabels() {
+    if (!labelCanvas || !labelCtx || !labelsData.length) return;
+    const show = document.getElementById('checkLabels').checked;
+    if (!show) return;
+
+    const W = labelCanvas.width  / (window.devicePixelRatio || 1);
+    const H = labelCanvas.height / (window.devicePixelRatio || 1);
+    const ctx = labelCtx;
+    ctx.save();
+    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const zoom = map.getZoom();
+
+    // Collision grid — same logic as original Leaflet code
+    const GRID = 55;
+    const occupied = new Set();
+
+    // Sort by flagSize descending so large nations win collisions
+    const sorted = [...labelsData].sort((a, b) =>
+        (b.properties.flagSize || 0) - (a.properties.flagSize || 0)
+    );
+
+    sorted.forEach(label => {
+        const props = label.properties;
+        const flagSize = props.flagSize || 0.2;
+        const coords   = label.coordinates; // [lng, lat]
+        if (!coords) return;
+
+        // Show labels at all zoom levels.
+        // At low zoom only show the biggest nations to avoid clutter.
+        const minZoom = map.getMinZoom();
+        if (zoom < minZoom + 0.5 && flagSize < 0.25) return;  // very zoomed out: only giants
+        if (zoom < 2.5 && flagSize < 0.15) return;             // zoomed out: large nations
+        if (zoom < 3.5 && flagSize < 0.08) return;             // mid zoom: skip tiny states
+
+        // Project to screen — MapLibre project() handles world copies correctly
+        const pt = map.project([coords[0], coords[1]]);
+        const sx = pt.x, sy = pt.y;
+
+        // Skip if off-screen (with margin)
+        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
+
+        // Collision detection
+        const gx = Math.floor(sx / GRID);
+        const gy = Math.floor(sy / GRID);
+        const key = `${gx},${gy}`;
+        if (occupied.has(key)) return;
+        occupied.add(key);
+
+        const name  = props.countryName || '';
+        const code  = (props.countryCode || '').toLowerCase();
+
+        // Font size — match Leaflet textSize scaling
+        const baseSize = props.textSize || 10;
+        let scale = 1.0;
+        if (zoom < 2.5)    scale = 1.4;
+        else if (zoom < 3) scale = 1.3;
+        else if (zoom < 4) scale = 1.2;
+        else if (zoom < 5) scale = 1.0;
+        else               scale = 0.9;
+        const fontSize = Math.round(baseSize * scale);
+
+        // Text color — white when selection active, per-nation color otherwise
+        const textColor = selectedCountryId
+            ? '#ffffff'
+            : (props.textColor || '#cccccc');
+
+        // Opacity fade zoom 2→3 for large labels
+        ctx.globalAlpha = 1.0;
+
+        // Flag image
+        const flagW = Math.round(16 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
+        const flagH = Math.round(11 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
+        const cachedFlag = flagImageCache.get(code);
+
+        const totalH = (cachedFlag ? flagH + 2 : 0) + fontSize;
+        const startY = sy - totalH / 2;
+
+        if (cachedFlag) {
+            ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
+        }
+
+        // Text
+        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.letterSpacing = '0.3px';
+
+        const textY = startY + (cachedFlag ? flagH + 2 : 0);
+        const upperName = name.toUpperCase();
+
+        // Halo / shadow
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur  = 4;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth   = 3;
+        ctx.lineJoin    = 'round';
+        ctx.strokeText(upperName, sx, textY);
+
+        ctx.shadowBlur  = 0;
+        ctx.fillStyle   = textColor;
+        ctx.fillText(upperName, sx, textY);
+    });
+
+    ctx.restore();
+}
+
+// Cache for flag images (HTMLImageElement)
+const flagImageCache = new Map();
+
+function loadFlagImage(code) {
+    if (!code || flagImageCache.has(code)) return;
+    flagImageCache.set(code, null); // mark as loading
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+        flagImageCache.set(code, img);
+        // Trigger a redraw
+        if (map) map.triggerRepaint();
+    };
+    img.onerror = () => flagImageCache.set(code, null); // failed, keep null
+    img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
+}
+
+function preloadAllFlags() {
+    labelsData.forEach(l => {
+        const code = (l.properties?.countryCode || '').toLowerCase();
+        if (code) loadFlagImage(code);
+    });
+}
+
+// ============================================================
+// SETUP MAP SOURCES & LAYERS (called once after data loaded)
+// ============================================================
+function setupMapLayers() {
+    const topoData = mapDataGlobal.map;
+
+    // 1. Convert TopoJSON → GeoJSON
+    baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
+
+    // 2. Extract label points
+    labelsData = mapDataGlobal.countryLabels?.geometries ||
+                 topoData.objects.countryLabels?.geometries || [];
+
+    // ── REGIONS SOURCE (with world copies for infinite scroll) ──
+    // MapLibre supports worldCopyJump natively; we just need one copy
+    // and wrap: true on the map. The fill will repeat automatically.
+    if (!map.getSource(SRC_REGIONS)) {
+        map.addSource(SRC_REGIONS, {
+            type: 'geojson',
+            data: baseGeoJSON
         });
-        layers.labels.addTo(map);
+    } else {
+        map.getSource(SRC_REGIONS).setData(baseGeoJSON);
+    }
+
+    // ── BORDERS SOURCE ──
+    const bordersMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
+    const coastMesh   = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
+
+    if (!map.getSource(SRC_BORDERS)) {
+        map.addSource(SRC_BORDERS, {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: [
+                    { type: 'Feature', properties: { kind: 'border' }, geometry: bordersMesh },
+                    { type: 'Feature', properties: { kind: 'coast'  }, geometry: coastMesh   }
+                ]
+            }
+        });
+    }
+
+    // ── LABELS SOURCE ──
+    const labelsGeoJSON = {
+        type: 'FeatureCollection',
+        features: labelsData.map(l => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: l.coordinates },
+            properties: l.properties
+        }))
+    };
+    if (!map.getSource(SRC_LABELS)) {
+        map.addSource(SRC_LABELS, { type: 'geojson', data: labelsGeoJSON });
+    } else {
+        map.getSource(SRC_LABELS).setData(labelsGeoJSON);
+    }
+
+    // ── LAYERS (only add if not present) ──
+
+    if (!map.getLayer(LYR_FILL)) {
+        map.addLayer({
+            id: LYR_FILL,
+            type: 'fill',
+            source: SRC_REGIONS,
+            paint: {
+                'fill-color': COLORS.NEUTRAL_UNSELECTED,
+                'fill-opacity': 0.9
+            }
+        });
+    }
+
+    if (!map.getLayer(LYR_COAST)) {
+        map.addLayer({
+            id: LYR_COAST,
+            type: 'line',
+            source: SRC_BORDERS,
+            filter: ['==', ['get', 'kind'], 'coast'],
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 0.8,
+                'line-opacity': 0.9
+            }
+        });
+    }
+
+    if (!map.getLayer(LYR_BORDER)) {
+        map.addLayer({
+            id: LYR_BORDER,
+            type: 'line',
+            source: SRC_BORDERS,
+            filter: ['==', ['get', 'kind'], 'border'],
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 0.8,
+                'line-opacity': 0.8
+            }
+        });
+    }
+
+    // ── CANVAS LABELS — no symbol layers needed ──
+    // initLabelCanvas() sets up the HTML canvas overlay.
+    // preloadAllFlags() starts downloading flag images in background.
+    initLabelCanvas();
+    preloadAllFlags();
+
+    // Attach click handlers here now that sublayer IDs are known
+    // Attach click handler on fill layer
+    map.off('click', LYR_FILL, onRegionClick);
+    map.on('click', LYR_FILL, onRegionClick);
+
+    // Cursor pointer on hover
+    map.on('mouseenter', LYR_FILL, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', LYR_FILL, () => map.getCanvas().style.cursor = '');
+
+    // Initial render
+    renderMap();
+}
+
+// setupFlagImageHandler kept as no-op — canvas overlay handles flags directly
+function setupFlagImageHandler() {}
+async function preloadFlagImages() { return Promise.resolve(); }
+
+// ============================================================
+// CLICK HANDLER
+// ============================================================
+function onRegionClick(e) {
+    if (!e.features || e.features.length === 0) return;
+    const cId = e.features[0].properties.countryId;
+    selectedCountryId = (selectedCountryId === cId) ? null : cId;
+    renderMap();
+    if (selectedCountryId) {
+        const nation = nationMap.get(selectedCountryId);
+        if (nation) showToast(`Selected: ${nation.name}`, 'info');
+    }
+}
+
+// ============================================================
+// DATA FETCHING & INIT
+// ============================================================
+async function init() {
+    map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+            sources: {},
+            layers: [
+                // Ocean background
+                { id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }
+            ]
+        },
+        center: [0, 20],
+        zoom: 2,
+        minZoom: 1.5,
+        maxZoom: 8,
+        renderWorldCopies: true,
+        attributionControl: false,
+        logoPosition: 'bottom-right'
+    });
+
+    // Remove MapLibre default controls
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    map.on('load', async () => {
         await refreshData();
         initPanelStates();
-    }
-    
-    async function refreshData() {
-        try {
-            showLoading();
-            const [resN, resM] = await Promise.all([
-                fetch('https://api2.warera.io/trpc/country.getAllCountries'),
-                fetch('https://api4.warera.io/trpc/map.getMapData')
-            ]);
-            if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
-            const nationsData = await resN.json();
-            const mapData = await resM.json();
-            nazioniGlobal = nationsData.result.data;
-            mapDataGlobal = mapData.result.data;
-            nationMap.clear();
-            nazioniGlobal.forEach(n => nationMap.set(n._id, n));
-            popolaListe();
-            renderMap();
-            showToast('Strategic data loaded successfully', 'success');
-        } catch (e) {
-            console.error("Data Error:", e);
-            showToast('Failed to load game data. Please refresh.', 'error');
-        } finally {
-            hideLoading();
-        }
-    }
-    
-    function popolaListe() {
-        const datalist = document.getElementById('nazioniList');
-        datalist.innerHTML = '';
-        [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
-            const opt = document.createElement('option');
-            opt.value = n.name;
-            datalist.appendChild(opt);
-        });
-    }
-    
-    // ---------- NAP MANAGEMENT ----------
-    function aggiungiNap() {
-        const input = document.getElementById('napInput');
-        const val = input.value.trim();
-        if (!val) { showToast('Please enter a nation name', 'error'); return; }
-        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
-        if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
-        if (customNaps.includes(found._id)) { showToast(`${found.name} is already in NAP list`, 'error'); return; }
-        if (selectedCountryId && found._id === selectedCountryId) { showToast(`Cannot add selected nation to NAP list`, 'error'); return; }
-        customNaps.push(found._id);
-        input.value = ''; 
-        aggiornaListaNap(); 
-        renderMap();
-        showToast(`Added ${found.name} to NAP list`, 'success');
-    }
-    
-    function rimuoviNap(id) {
-        const nation = nationMap.get(id);
-        customNaps = customNaps.filter(n => n !== id);
-        aggiornaListaNap(); 
-        renderMap();
-        if (nation) showToast(`Removed ${nation.name} from NAP list`, 'info');
-    }
-    
-    function aggiornaListaNap() {
-        const container = document.getElementById('napList');
-        const countBadge = document.getElementById('nap-count');
-        countBadge.textContent = customNaps.length;
-        if (customNaps.length === 0) {
-            container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
-            return;
-        }
-        container.innerHTML = "";
-        customNaps.forEach(id => {
-            const n = nationMap.get(id);
-            if (n) {
-                container.innerHTML += `
-                    <div class="nap-item">
-                        <span style="font-weight: 600;">${n.name}</span> 
-                        <span class="remove-nap" onclick="rimuoviNap('${id}')" title="Remove NAP">✕</span>
-                    </div>
-                `;
-            }
-        });
-    }
-    
-    // ---------- SEARCH & RESET ----------
-    function cercaNazione() {
-        const input = document.getElementById('cercaInput');
-        const val = input.value.toLowerCase().trim();
-        if (!val) { showToast('Please enter a nation name', 'error'); return; }
-        const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || 
-                      nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
-        if (found) { 
-            selectedCountryId = found._id; 
-            input.value = found.name; 
-            renderMap();
-            showToast(`Selected: ${found.name}`, 'success');
-            if (window.innerWidth <= 768) {
-                document.getElementById('dynamic-legend').classList.add('hidden');
-            }
-        } else {
-            showToast(`Nation "${val}" not found`, 'error');
-        }
-    }
-    
-    function resetDiplomazia() {
-        selectedCountryId = null; 
-        customNaps = []; 
-        document.getElementById('cercaInput').value = '';
-        document.getElementById('checkExtended').checked = false;
-        document.getElementById('napInput').value = '';
-        aggiornaListaNap(); 
-        renderMap();
-        showToast('Reset complete', 'info');
-    }
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('cercaInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') cercaNazione(); });
-        document.getElementById('napInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') aggiungiNap(); });
     });
-    
-    window.onload = init;
+}
+
+async function refreshData() {
+    try {
+        showLoading();
+        const [resN, resM] = await Promise.all([
+            fetch('https://api2.warera.io/trpc/country.getAllCountries'),
+            fetch('https://api4.warera.io/trpc/map.getMapData')
+        ]);
+        if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
+        const nationsData = await resN.json();
+        const mapData     = await resM.json();
+        nazioniGlobal = nationsData.result.data;
+        mapDataGlobal = mapData.result.data;
+        nationMap.clear();
+        nazioniGlobal.forEach(n => nationMap.set(n._id, n));
+        popolaListe();
+        setupMapLayers();
+        showToast('Strategic data loaded successfully', 'success');
+    } catch (e) {
+        console.error('Data Error:', e);
+        showToast('Failed to load game data. Please refresh.', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function popolaListe() {
+    const datalist = document.getElementById('nazioniList');
+    datalist.innerHTML = '';
+    [...nazioniGlobal].sort((a, b) => a.name.localeCompare(b.name)).forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.name;
+        datalist.appendChild(opt);
+    });
+}
+
+// ============================================================
+// NAP MANAGEMENT
+// ============================================================
+function aggiungiNap() {
+    const input = document.getElementById('napInput');
+    const val = input.value.trim();
+    if (!val) { showToast('Please enter a nation name', 'error'); return; }
+    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
+    if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
+    if (customNaps.includes(found._id)) { showToast(`${found.name} is already in NAP list`, 'error'); return; }
+    if (selectedCountryId && found._id === selectedCountryId) { showToast(`Cannot add selected nation to NAP list`, 'error'); return; }
+    customNaps.push(found._id);
+    input.value = '';
+    aggiornaListaNap();
+    renderMap();
+    showToast(`Added ${found.name} to NAP list`, 'success');
+}
+
+function rimuoviNap(id) {
+    const nation = nationMap.get(id);
+    customNaps = customNaps.filter(n => n !== id);
+    aggiornaListaNap();
+    renderMap();
+    if (nation) showToast(`Removed ${nation.name} from NAP list`, 'info');
+}
+
+function aggiornaListaNap() {
+    const container  = document.getElementById('napList');
+    const countBadge = document.getElementById('nap-count');
+    countBadge.textContent = customNaps.length;
+    if (customNaps.length === 0) {
+        container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
+        return;
+    }
+    container.innerHTML = '';
+    customNaps.forEach(id => {
+        const n = nationMap.get(id);
+        if (n) {
+            container.innerHTML += `
+                <div class="nap-item">
+                    <span style="font-weight:600">${n.name}</span>
+                    <span class="remove-nap" onclick="rimuoviNap('${id}')" title="Remove NAP">✕</span>
+                </div>
+            `;
+        }
+    });
+}
+
+// ============================================================
+// SEARCH & RESET
+// ============================================================
+function cercaNazione() {
+    const input = document.getElementById('cercaInput');
+    const val = input.value.toLowerCase().trim();
+    if (!val) { showToast('Please enter a nation name', 'error'); return; }
+    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) ||
+                  nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
+    if (found) {
+        selectedCountryId = found._id;
+        input.value = found.name;
+        renderMap();
+        showToast(`Selected: ${found.name}`, 'success');
+        // Fly to nation centroid if available
+        const labelInfo = labelsData.find(l => l.properties?.countryId === found._id);
+        if (labelInfo && labelInfo.coordinates) {
+            map.flyTo({ center: labelInfo.coordinates, zoom: Math.max(map.getZoom(), 3), duration: 800 });
+        }
+        if (window.innerWidth <= 768) document.getElementById('dynamic-legend').classList.add('hidden');
+    } else {
+        showToast(`Nation "${val}" not found`, 'error');
+    }
+}
+
+function resetDiplomazia() {
+    selectedCountryId = null;
+    customNaps = [];
+    document.getElementById('cercaInput').value = '';
+    document.getElementById('checkExtended').checked = false;
+    document.getElementById('napInput').value = '';
+    aggiornaListaNap();
+    renderMap();
+    showToast('Reset complete', 'info');
+}
+
+// ============================================================
+// DOM READY
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
+    document.getElementById('napInput').addEventListener('keypress',   e => { if (e.key === 'Enter') aggiungiNap(); });
+});
+
+window.onload = init;
 </script>
 </body>
 </html>
