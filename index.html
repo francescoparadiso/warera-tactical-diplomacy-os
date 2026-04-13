@@ -956,6 +956,7 @@ function updateSelectedDisplay() {
 
 function setMode(mode) {
     currentMode = mode;
+    if (window.umami) umami.track('mode-change', { mode: mode });
     renderMap();
 }
 
@@ -1399,8 +1400,9 @@ function onRegionClick(e) {
     }
     selectedCountryId = (selectedCountryId === cId) ? null : cId;
     renderMap();
-    if (selectedCountryId) {
-        const nation = nationMap.get(selectedCountryId);
+   if (window.umami && selectedCountryId) {
+    const nation = nationMap.get(selectedCountryId);
+      if (nation) umami.track('nation-click', { nation: nation.name, mode: currentMode });
         if (nation) showToast(`Selected: ${nation.name}`, 'info');
     }
 }
@@ -1507,6 +1509,7 @@ function aggiungiNap() {
     customNaps.push(found._id);
     input.value = '';
     aggiornaListaNap();
+    if (window.umami) umami.track('nap-added', { nation: found.name });
     renderMap();
     showToast(`Added ${found.name} to NAP list`, 'success');
 }
@@ -1553,6 +1556,7 @@ function cercaNazione() {
     if (found) {
         selectedCountryId = found._id;
         input.value = found.name;
+        if (window.umami) umami.track('nation-searched', { nation: found.name });
         renderMap();
         showToast(`Selected: ${found.name}`, 'success');
         const labelInfo = labelsData.find(l => l.properties?.countryId === found._id);
@@ -1572,6 +1576,7 @@ function resetDiplomazia() {
     document.getElementById('checkExtended').checked = false;
     document.getElementById('napInput').value = '';
     aggiornaListaNap();
+    if (window.umami) umami.track('diplomacy-reset', { mode: currentMode });
     renderMap();
     showToast('Reset complete', 'info');
 }
