@@ -70,51 +70,52 @@
             to { transform: translateX(0); opacity: 1; }
         }
 
-        /* Panels */
-        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
-        .panel {
-            background: rgba(10,10,10,0.95);
-            border: 1px solid #333;
-            padding: 16px;
-            border-radius: 12px;
-            pointer-events: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px);
-        }
-        #top-left { top: 20px; left: 20px; width: 340px; }
-        #top-right { top: 20px; right: 20px; width: 320px; }
-        #legend-container { bottom: 30px; left: 20px; }
-        #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
+/* Panels - collassabili su tutte le dimensioni (desktop e mobile) */
+.overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+.panel {
+    background: rgba(10,10,10,0.95);
+    border: 1px solid #333;
+    padding: 16px;
+    border-radius: 12px;
+    pointer-events: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    backdrop-filter: blur(10px);
+}
+#top-left { top: 20px; left: 20px; width: 340px; }
+#top-right { top: 20px; right: 20px; width: 320px; }
+#legend-container { bottom: 30px; left: 20px; }
+#stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
 
-        .stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stat-item { display: flex; flex-direction: column; align-items: center; }
-        .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
+.stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-item { display: flex; flex-direction: column; align-items: center; }
+.stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
 
-        .panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;          /* già presente */
-            user-select: none;
-        }
-        .panel-content {
-            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
-            overflow: hidden;
-        }
-        .panel-content.collapsed {
-            max-height: 0 !important;
-            opacity: 0;
-            margin-top: 0 !important;
-            pointer-events: none;
-        }
-        .collapse-icon { font-size: 18px; color: #00d4ff; transition: transform 0.3s; }
-        .collapse-icon.collapsed { transform: rotate(-90deg); }
-
-        @media (min-width: 769px) {
-            .panel-header { cursor: default; pointer-events: none; }
-            .collapse-icon { display: none; }
-            .panel-content { max-height: none !important; opacity: 1 !important; margin-top: 12px !important; pointer-events: auto !important; }
-        }
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+.panel-content {
+    transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+    overflow: hidden;
+}
+.panel-content.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    margin-top: 0 !important;
+    pointer-events: none;
+}
+.collapse-icon {
+    font-size: 18px;
+    color: #00d4ff;
+    transition: transform 0.3s;
+    cursor: pointer;
+}
+.collapse-icon.collapsed {
+    transform: rotate(-90deg);
+}
 
         #stats-chip {
             display: none;
@@ -371,6 +372,7 @@ let mapDataGlobal = null;
 let selectedCountryId = null;
 let customNaps = [];
 const nationMap = new Map();
+const multiBlocMap = new Map(); // countryId -> { colors: [], patternKey: string }
 
 let baseGeoJSON = null;
 let labelsData = [];
@@ -390,10 +392,12 @@ const COLORS = {
     NEUTRAL_UNSELECTED:"#3a3d46",
     OCEAN:            "#000000",
     // Colori per i blocchi
-    ITALIAN_BLOC:     "#2980b9",   // blu
+    ITALIAN_BLOC:     "#1b557a",   // blu
+    WESTERN_BLOC:     "#55a5d9",   // blu simile a Olive Union
     AFRICAN_UNION:    "#e67e22",   // arancione
     ASIAN_FEDERATION: "#8e44ad",   // viola
     ICDP:             "#c0392b"    // rosso
+    
 };
 
 // Source/layer IDs
@@ -405,36 +409,104 @@ const LYR_FILL    = 'regions-fill';
 const LYR_OUTLINE = 'regions-outline';
 const LYR_COAST   = 'regions-coast';
 const LYR_BORDER  = 'borders-line';
+const LYR_MULTI_BLOC = 'multi-bloc-pattern';
 
 // ============================================================
 // BLOC DEFINITIONS
 // ============================================================
 const blocColorMap = new Map(); // countryId -> color
 
-const italianBlocCodes = new Set(['IT','HR','HU','GR','TR','IQ','EG','CL', 'AR', 'LT']);
+const italianBlocCodes = new Set(['IT','HR','HU','GR','TR','IQ','EG','LT']);
 const icdpCodes = new Set(['RO','DE','UA','RS']);
-const asianFederationCodes = new Set(['IN','CN','KP','PH','AU']);
-const africanCodes = new Set([
-    'DZ','BJ','BW','BF','BI','CM','CV','CF','TD','KM','CD','DJ','EG','GQ','ER','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
+const asianFederationCodes = new Set([
+    'BT', 'BN', 'CN', 'TL', 'EG', 'FJ', 'IN', 'IQ', 'PS', 'PG', 'PH', 'TR', 'KP', 'VN', 'VU'
 ]);
+const africanCodes = new Set([
+    'AO','DZ','BJ','BW','BF','BI','CM','CV','CF','TD','KM','CD','DJ','EG','GQ','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MW','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
+]);
+const westernBlocCodes = new Set(['FR', 'NL', 'BE', 'AR', 'CL', 'US']);
+// Nota: rimosso 'ZA' (Sudafrica) da africanCodes
 
 function buildBlocMap() {
     blocColorMap.clear();
+    multiBlocMap.clear();
+
     nazioniGlobal.forEach(n => {
         const code = n.code?.toUpperCase();
         if (!code) return;
-        if (italianBlocCodes.has(code)) blocColorMap.set(n._id, COLORS.ITALIAN_BLOC);
-        else if (icdpCodes.has(code)) blocColorMap.set(n._id, COLORS.ICDP);
-        else if (asianFederationCodes.has(code)) blocColorMap.set(n._id, COLORS.ASIAN_FEDERATION);
-        else if (africanCodes.has(code)) blocColorMap.set(n._id, COLORS.AFRICAN_UNION);
+
+        const hits = [];
+        if (italianBlocCodes.has(code))     hits.push({ name: 'italian', color: COLORS.ITALIAN_BLOC });
+        if (icdpCodes.has(code))            hits.push({ name: 'icdp',    color: COLORS.ICDP });
+        if (asianFederationCodes.has(code)) hits.push({ name: 'asian',   color: COLORS.ASIAN_FEDERATION });
+        if (africanCodes.has(code))         hits.push({ name: 'african', color: COLORS.AFRICAN_UNION });
+        if (westernBlocCodes.has(code))     hits.push({ name: 'western', color: COLORS.WESTERN_BLOC }); 
+
+        if (hits.length === 0) return;
+
+        if (hits.length === 1) {
+            blocColorMap.set(n._id, hits[0].color);
+        } else {
+            const patternKey = 'stripe-' + hits.map(h => h.name).join('-');
+            multiBlocMap.set(n._id, { colors: hits.map(h => h.color), patternKey });
+            blocColorMap.set(n._id, hits[0].color); // fallback colore singolo
+        }
     });
+}
+function createBlendPattern(colors, sz = 2048) {
+    const canvas = document.createElement('canvas');
+    canvas.width = sz;
+    canvas.height = sz;
+    const ctx = canvas.getContext('2d');
+    
+    // Gradiente lineare diagonale su larga scala
+    const gradient = ctx.createLinearGradient(0, 0, sz, sz);
+    const step = 1 / (colors.length - 1);
+    colors.forEach((color, idx) => {
+        gradient.addColorStop(idx * step, color);
+    });
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, sz, sz);
+    
+    // Bordo sottile opzionale
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(0, 0, sz, sz);
+    
+    return canvas;
+}
+
+function createAndAddStripePatterns() {
+    const seen = new Set();
+    multiBlocMap.forEach(({ colors, patternKey }) => {
+        if (seen.has(patternKey)) return;
+        seen.add(patternKey);
+        const canvas = createBlendPattern(colors, 10); // dimensione grande
+        const img = new Image();
+        img.onload = () => {
+            if (!map.hasImage(patternKey)) {
+                map.addImage(patternKey, img);
+                if (map.getLayer(LYR_MULTI_BLOC)) map.triggerRepaint();
+            }
+        };
+        img.src = canvas.toDataURL();
+    });
+}
+
+function buildMultiBlocPatternExpression() {
+    const entries = [...multiBlocMap.entries()];
+    if (entries.length === 0) return entries[0]?.[1].patternKey || '';
+    const expr = ['match', ['get', 'countryId']];
+    entries.forEach(([id, { patternKey }]) => expr.push(id, patternKey));
+    expr.push(entries[0][1].patternKey); // fallback (mai raggiunto grazie al filter)
+    return expr;
 }
 
 // ============================================================
 // PANEL / UI HELPERS
 // ============================================================
 function togglePanel(panelId) {
-    if (window.innerWidth > 768) return;
     const content = document.getElementById(panelId);
     const side = panelId.split('-')[1];
     const icon = document.getElementById('icon-' + side);
@@ -451,7 +523,7 @@ function togglePanel(panelId) {
     localStorage.setItem(panelId + '-collapsed', isNowCollapsed);
 }
 function initPanelStates() {
-    if (window.innerWidth > 768) return;
+    // Rimossa la condizione per permettere il collasso anche su desktop
     ['panel-left', 'panel-right'].forEach(id => {
         const content = document.getElementById(id);
         const side = id.split('-')[1];
@@ -480,7 +552,17 @@ function toggleStatsDetails() {
     const naps   = document.getElementById('stats-naps').textContent;
     showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
 }
-function showToast(message, type = 'info') { /* invariato */ }
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
 function hideLoading() {
     const el = document.getElementById('loading-overlay');
@@ -514,10 +596,12 @@ function drawBlocLabels(ctx, W, H) {
     const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
     
     const blocPositions = [
-        { name: 'OLIVE UNION', lng: -40, lat: 20, color: COLORS.ITALIAN_BLOC },
+        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
+        { name: 'OLIVE UNION ALLIES', lng: -50, lat: 30, color: COLORS.WESTERN_BLOC },
         { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
         { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
         { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP }
+        
     ];
     
     blocPositions.forEach(b => {
@@ -592,6 +676,7 @@ function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies,
 function buildBlocColorExpression() {
     const expr = ['match', ['get', 'countryId']];
     for (let [id, color] of blocColorMap.entries()) {
+        if (multiBlocMap.has(id)) continue; // gestite dal layer pattern
         expr.push(id, color);
     }
     expr.push(COLORS.DEFAULT_LAND);
@@ -603,16 +688,25 @@ function buildBlocColorExpression() {
 // ============================================================
 function updateDynamicLegend() {
     const box = document.getElementById('dynamic-legend');
-    if (currentMode === 'blocs') {
-        box.innerHTML = `
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
-        `;
-        return;
-    }
+if (currentMode === 'blocs') {
+    const multiEntries = [...multiBlocMap.values()];
+    const multiHtml = multiEntries.length > 0
+        ? `<div class="legend-item">
+            <div class="dot" style="background:linear-gradient(135deg,${[...new Set(multiEntries.map(e=>e.colors[0]))][0]} 50%,${[...new Set(multiEntries.map(e=>e.colors[1]))][0]} 50%)"></div>
+            <span>Multi-bloc</span>
+           </div>`
+        : '';
+    box.innerHTML = `
+        <div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Western Bloc</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
+        <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
+        ${multiHtml}
+        <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
+    `;
+    return;
+}
     if (!selectedCountryId) {
         box.innerHTML = `
             <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
@@ -694,7 +788,20 @@ function renderMap() {
             map.setPaintProperty(LYR_FILL, 'fill-color', expr);
             map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
         }
+        if (map.getLayer(LYR_MULTI_BLOC)) {
+            const multiIds = [...multiBlocMap.keys()];
+            if (multiIds.length > 0) {
+                map.setFilter(LYR_MULTI_BLOC, ['in', ['get', 'countryId'], ['literal', multiIds]]);
+                map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
+            }
+            map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', multiIds.length > 0 ? 'visible' : 'none');
+        }
     } else {
+        // Nascondi il layer stripe in modalità diplomacy
+        if (map.getLayer(LYR_MULTI_BLOC)) {
+            map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
+        }
+        // Rendering diplomacy
         const isExtended = document.getElementById('checkExtended').checked;
         let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
         if (selectedCountryId) {
@@ -721,7 +828,6 @@ function renderMap() {
     toggleLabels();
     if (labelCanvas) map.triggerRepaint();
 }
-
 // ============================================================
 // CANVAS LABEL OVERLAY (invariato)
 // ============================================================
@@ -750,35 +856,82 @@ function resizeLabelCanvas() {
 }
 
 function toggleLabels() {
-    if (!labelCanvas) return;
-    const show = document.getElementById('checkLabels').checked;
-    labelCanvas.style.display = show ? 'block' : 'none';
+    // Il canvas rimane sempre visibile; la visibilità delle etichette nazioni è gestita in drawLabels()
+    if (labelCanvas) map.triggerRepaint();
 }
 
 function drawLabels() {
-    if (!labelCanvas || !labelCtx || !labelsData.length) return;
-    const show = document.getElementById('checkLabels').checked;
-    if (!show) return;
+    const BLOC_MARGIN = 30;   // margine per nomi blocchi
+    const NATION_MARGIN = 1;  // margine per nomi nazioni
 
-    const W = labelCanvas.width  / (window.devicePixelRatio || 1);
+    if (!labelCanvas || !labelCtx || !labelsData.length) return;
+    const showNations = document.getElementById('checkLabels').checked;
+
+    const W = labelCanvas.width / (window.devicePixelRatio || 1);
     const H = labelCanvas.height / (window.devicePixelRatio || 1);
     const ctx = labelCtx;
     ctx.save();
     ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    const zoom = map.getZoom();
-    const GRID = 55;
-    const occupied = new Set();
+    // Array per memorizzare le bounding box dei nomi già disegnati (nazioni)
+    let drawnNationBoxes = [];
 
+    // 1. Disegna i nomi dei blocchi (solo in modalità blocs) e memorizza le loro bounding box
+    let blocBBoxes = [];
+    if (currentMode === 'blocs') {
+        drawBlocLabels(ctx, W, H);
+        // Raccogli le coordinate dei blocchi disegnati (per la collisione con le nazioni)
+        const zoom = map.getZoom();
+        const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
+        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+        const blocPositions = [
+            { name: 'OLIVE UNION', lng: 30, lat: 40 },
+            { name: 'WESTERN BLOC', lng: -50, lat: 30 },
+            { name: 'AFRICAN UNION', lng: -10, lat: -20 },
+            { name: 'ASIAN FEDERATION', lng: 90, lat: -15 },
+            { name: 'ICDP', lng: 20, lat: 52 }
+        ];
+        blocPositions.forEach(b => {
+            const pt = map.project([b.lng, b.lat]);
+            if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
+                const metrics = ctx.measureText(b.name);
+                const textWidth = metrics.width;
+                const textHeight = fontSize;
+                blocBBoxes.push({
+                    xMin: pt.x - textWidth / 2 - BLOC_MARGIN,
+                    xMax: pt.x + textWidth / 2 + BLOC_MARGIN,
+                    yMin: pt.y - textHeight / 2 - BLOC_MARGIN,
+                    yMax: pt.y + textHeight / 2 + BLOC_MARGIN
+                });
+            }
+        });
+    }
+
+    // 2. Se le etichette delle nazioni sono disattivate, fermati qui
+    if (!showNations) {
+        ctx.restore();
+        return;
+    }
+
+    // 3. Prepara i dati delle nazioni da disegnare
+    const zoom = map.getZoom();
+    // Ordina per flagSize decrescente (i paesi più importanti per primi)
     const sorted = [...labelsData].sort((a, b) =>
         (b.properties.flagSize || 0) - (a.properties.flagSize || 0)
     );
 
+    // Funzione helper per controllare collisione tra due rettangoli
+    function intersects(box1, box2) {
+        return !(box2.xMin > box1.xMax || box2.xMax < box1.xMin ||
+                 box2.yMin > box1.yMax || box2.yMax < box1.yMin);
+    }
+
+    // Itera su tutte le nazioni
     sorted.forEach(label => {
         const props = label.properties;
         const flagSize = props.flagSize || 0.2;
-        const coords   = label.coordinates;
+        const coords = label.coordinates;
         if (!coords) return;
 
         if (zoom < 2.5 && flagSize < 0.15) return;
@@ -788,37 +941,55 @@ function drawLabels() {
         const sx = pt.x, sy = pt.y;
         if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
 
-        const gx = Math.floor(sx / GRID);
-        const gy = Math.floor(sy / GRID);
-        const key = `${gx},${gy}`;
-        if (occupied.has(key)) return;
-        occupied.add(key);
-
-        const name  = props.countryName || '';
-        const code  = (props.countryCode || '').toLowerCase();
+        // Calcola dimensioni del testo (con bandiera)
+        const nameStr = props.countryName?.toUpperCase() || '';
         const baseSize = props.textSize || 10;
         let scale = 1.0;
-        if (zoom < 2.5)    scale = 1.4;
-        else if (zoom < 3) scale = 1.3;
-        else if (zoom < 4) scale = 1.2;
-        else if (zoom < 5) scale = 1.0;
-        else               scale = 0.9;
+        if (zoom < 2.5)      scale = 1.4;
+        else if (zoom < 3)   scale = 1.3;
+        else if (zoom < 4)   scale = 1.2;
+        else if (zoom < 5)   scale = 1.0;
+        else                 scale = 0.9;
         const fontSize = Math.round(baseSize * scale);
+        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+        const textWidth = ctx.measureText(nameStr).width;
+        const textHeight = fontSize;
 
-  // Text color — in blocs mode use bloc color, otherwise white on selection or default
-        let textColor;
+        // Calcola bounding box del nome nazione (con margine di 5px)
+        const nationBox = {
+            xMin: sx - textWidth / 2 - NATION_MARGIN,
+            xMax: sx + textWidth / 2 + NATION_MARGIN,
+            yMin: sy - textHeight / 2 - NATION_MARGIN,
+            yMax: sy + textHeight / 2 + NATION_MARGIN
+        };
+
+        // Controllo collisione con blocchi (solo in modalità blocs)
         if (currentMode === 'blocs') {
-            const cId = props.countryId;
-            textColor = blocColorMap.get(cId) || '#cccccc';
-            // Quando una nazione è selezionata in modalità blocchi, potremmo volerla evidenziare in bianco:
-            if (selectedCountryId === cId) textColor = '#ffffff';
-        } else {
-            textColor = selectedCountryId
-                ? '#ffffff'
-                : (props.textColor || '#cccccc');
+            let collideBloc = false;
+            for (let box of blocBBoxes) {
+                if (intersects(nationBox, box)) {
+                    collideBloc = true;
+                    break;
+                }
+            }
+            if (collideBloc) return;
         }
-        ctx.globalAlpha = 1.0;
 
+        // Controllo collisione con altri nomi di nazioni già disegnati
+        let collideNation = false;
+        for (let existingBox of drawnNationBoxes) {
+            if (intersects(nationBox, existingBox)) {
+                collideNation = true;
+                break;
+            }
+        }
+        if (collideNation) return;
+
+        // Nessuna collisione: possiamo disegnare
+        drawnNationBoxes.push(nationBox);
+
+        // Calcola bandiera
+        const code = (props.countryCode || '').toLowerCase();
         const flagW = Math.round(16 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
         const flagH = Math.round(11 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
         const cachedFlag = flagImageCache.get(code);
@@ -829,27 +1000,38 @@ function drawLabels() {
             ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
         }
 
-        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+        // Colore del testo
+        let textColor;
+        if (currentMode === 'blocs') {
+            // In modalità blocs non dovremmo arrivare qui perché i nomi nazioni sono già filtrati,
+            // ma se arrivano usa il colore del blocco
+            const cId = props.countryId;
+            textColor = blocColorMap.get(cId) || '#cccccc';
+            if (selectedCountryId === cId) textColor = '#ffffff';
+        } else {
+            textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
+        }
+
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.letterSpacing = '0.3px';
         const textY = startY + (cachedFlag ? flagH + 2 : 0);
-        const upperName = name.toUpperCase();
+        const upperName = nameStr;
 
         ctx.shadowColor = '#000';
-        ctx.shadowBlur  = 4;
+        ctx.shadowBlur = 4;
         ctx.strokeStyle = '#000';
-        ctx.lineWidth   = 3;
-        ctx.lineJoin    = 'round';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
         ctx.strokeText(upperName, sx, textY);
-        ctx.shadowBlur  = 0;
-        ctx.fillStyle   = textColor;
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = textColor;
         ctx.fillText(upperName, sx, textY);
     });
 
-      drawBlocLabels(ctx, W, H);
     ctx.restore();
 }
+
 
 const flagImageCache = new Map();
 function loadFlagImage(code) {
@@ -907,7 +1089,7 @@ function setupMapLayers() {
         map.getSource(SRC_LABELS).setData(labelsGeoJSON);
     }
 
-    if (!map.getLayer(LYR_FILL)) {
+if (!map.getLayer(LYR_FILL)) {
         map.addLayer({
             id: LYR_FILL,
             type: 'fill',
@@ -915,6 +1097,26 @@ function setupMapLayers() {
             paint: { 'fill-color': COLORS.NEUTRAL_UNSELECTED, 'fill-opacity': 0.9 }
         });
     }
+
+    // Layer stripe multi-bloc (sopra il fill, sotto i bordi)
+    createAndAddStripePatterns();
+    if (!map.getLayer(LYR_MULTI_BLOC)) {
+        const multiIds = [...multiBlocMap.keys()];
+        map.addLayer({
+            id: LYR_MULTI_BLOC,
+            type: 'fill',
+            source: SRC_REGIONS,
+            filter: multiIds.length > 0
+                ? ['in', ['get', 'countryId'], ['literal', multiIds]]
+                : ['==', ['get', 'countryId'], '___none___'],
+            layout: { visibility: 'none' },
+            paint: { 'fill-opacity': 0.92 }
+        });
+        if (multiIds.length > 0) {
+            map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
+        }
+    }
+
     if (!map.getLayer(LYR_COAST)) {
         map.addLayer({
             id: LYR_COAST,
