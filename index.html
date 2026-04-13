@@ -279,6 +279,7 @@
             <select id="mode-selector" onchange="setMode(this.value)">
                 <option value="diplomacy" selected>🗺️ Diplomacy (Current)</option>
                 <option value="blocs">🏛️ Alliance Blocs</option>
+                <option value="original">🗺️ Original Borders + Diplomacy</option>
             </select>
             <div id="selected-display" class="selected-info" style="display: none;">
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
@@ -371,13 +372,15 @@ let nazioniGlobal = [];
 let mapDataGlobal = null;
 let selectedCountryId = null;
 let customNaps = [];
+let nationBaseColorMap = new Map(); // countryId -> colore base (strokeColor)
 const nationMap = new Map();
 const multiBlocMap = new Map(); // countryId -> { colors: [], patternKey: string }
 
 let baseGeoJSON = null;
+let originalLabelsData = [];
 let labelsData = [];
 
-// Modalità corrente: 'diplomacy' o 'blocs'
+// Modalità corrente: 'diplomacy' o 'blocs' o 'original'
 let currentMode = 'diplomacy';
 
 const COLORS = {
@@ -397,7 +400,6 @@ const COLORS = {
     AFRICAN_UNION:    "#e67e22",   // arancione
     ASIAN_FEDERATION: "#8e44ad",   // viola
     ICDP:             "#c0392b"    // rosso
-    
 };
 
 // Source/layer IDs
@@ -422,10 +424,9 @@ const asianFederationCodes = new Set([
     'BT', 'BN', 'CN', 'TL', 'EG', 'FJ', 'IN', 'IQ', 'PS', 'PG', 'PH', 'TR', 'KP', 'VN', 'VU'
 ]);
 const africanCodes = new Set([
-    'AO','DZ','BJ','BW','BF','BI','CM','CV','CF','TD','KM','CD','DJ','EG','GQ','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MW','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
+    'AO','DZ','BJ','BW','BF','BI','CM','CV','CF','KM','CD','DJ','EG','GQ','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MW','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
 ]);
 const westernBlocCodes = new Set(['FR', 'NL', 'BE', 'AR', 'CL', 'US']);
-// Nota: rimosso 'ZA' (Sudafrica) da africanCodes
 
 function buildBlocMap() {
     blocColorMap.clear();
@@ -453,27 +454,36 @@ function buildBlocMap() {
         }
     });
 }
+
+function getOriginalBordersMesh(topoData) {
+    const cloned = JSON.parse(JSON.stringify(topoData));
+    const regions = cloned.objects.regions;
+    if (regions && regions.geometries) {
+        regions.geometries.forEach(geom => {
+            if (geom.properties && geom.properties.initialCountryId) {
+                geom.properties.countryId = geom.properties.initialCountryId;
+            }
+        });
+    }
+    const mesh = topojson.mesh(cloned, cloned.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
+    return mesh;
+}
+
 function createBlendPattern(colors, sz = 2048) {
     const canvas = document.createElement('canvas');
     canvas.width = sz;
     canvas.height = sz;
     const ctx = canvas.getContext('2d');
-    
-    // Gradiente lineare diagonale su larga scala
     const gradient = ctx.createLinearGradient(0, 0, sz, sz);
     const step = 1 / (colors.length - 1);
     colors.forEach((color, idx) => {
         gradient.addColorStop(idx * step, color);
     });
-    
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, sz, sz);
-    
-    // Bordo sottile opzionale
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 0.5;
     ctx.strokeRect(0, 0, sz, sz);
-    
     return canvas;
 }
 
@@ -482,7 +492,7 @@ function createAndAddStripePatterns() {
     multiBlocMap.forEach(({ colors, patternKey }) => {
         if (seen.has(patternKey)) return;
         seen.add(patternKey);
-        const canvas = createBlendPattern(colors, 10); // dimensione grande
+        const canvas = createBlendPattern(colors, 8);
         const img = new Image();
         img.onload = () => {
             if (!map.hasImage(patternKey)) {
@@ -496,10 +506,10 @@ function createAndAddStripePatterns() {
 
 function buildMultiBlocPatternExpression() {
     const entries = [...multiBlocMap.entries()];
-    if (entries.length === 0) return entries[0]?.[1].patternKey || '';
+    if (entries.length === 0) return '';
     const expr = ['match', ['get', 'countryId']];
     entries.forEach(([id, { patternKey }]) => expr.push(id, patternKey));
-    expr.push(entries[0][1].patternKey); // fallback (mai raggiunto grazie al filter)
+    expr.push(entries[0][1].patternKey);
     return expr;
 }
 
@@ -511,7 +521,6 @@ function togglePanel(panelId) {
     const side = panelId.split('-')[1];
     const icon = document.getElementById('icon-' + side);
     if (!content || !icon) return;
-    
     const isNowCollapsed = !content.classList.contains('collapsed');
     if (isNowCollapsed) {
         content.classList.add('collapsed');
@@ -522,8 +531,8 @@ function togglePanel(panelId) {
     }
     localStorage.setItem(panelId + '-collapsed', isNowCollapsed);
 }
+
 function initPanelStates() {
-    // Rimossa la condizione per permettere il collasso anche su desktop
     ['panel-left', 'panel-right'].forEach(id => {
         const content = document.getElementById(id);
         const side = id.split('-')[1];
@@ -539,6 +548,7 @@ function initPanelStates() {
         }
     });
 }
+
 function updateStatsChip() {
     document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
     document.getElementById('chip-wars').textContent   = document.getElementById('stats-wars').textContent;
@@ -552,6 +562,7 @@ function toggleStatsDetails() {
     const naps   = document.getElementById('stats-naps').textContent;
     showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
 }
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -563,6 +574,7 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
 function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
 function hideLoading() {
     const el = document.getElementById('loading-overlay');
@@ -588,42 +600,7 @@ function getIndirectAllies(targetId) {
     });
     return Array.from(indirect);
 }
-function drawBlocLabels(ctx, W, H) {
-    if (currentMode !== 'blocs') return;
-    
-    const zoom = map.getZoom();
-    // Dimensione testo scalata con lo zoom
-    const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
-    
-    const blocPositions = [
-        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
-        { name: 'OLIVE UNION ALLIES', lng: -50, lat: 30, color: COLORS.WESTERN_BLOC },
-        { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
-        { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
-        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP }
-        
-    ];
-    
-    blocPositions.forEach(b => {
-        const pt = map.project([b.lng, b.lat]);
-        const sx = pt.x, sy = pt.y;
-        
-        // Fuori schermo? salta
-        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
-        
-        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 8;
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 4;
-        ctx.strokeText(b.name, sx, sy);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = b.color;
-        ctx.fillText(b.name, sx, sy);
-    });
-}
+
 function getEnemyAllies(targetId) {
     const target = nationMap.get(targetId);
     if (!target || !target.warsWith) return [];
@@ -676,37 +653,233 @@ function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies,
 function buildBlocColorExpression() {
     const expr = ['match', ['get', 'countryId']];
     for (let [id, color] of blocColorMap.entries()) {
-        if (multiBlocMap.has(id)) continue; // gestite dal layer pattern
+        if (multiBlocMap.has(id)) continue;
         expr.push(id, color);
     }
     expr.push(COLORS.DEFAULT_LAND);
     return expr;
 }
 
+function buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended) {
+    const colorMap = new Map();
+    nazioniGlobal.forEach(n => {
+        const id = n._id;
+        let color;
+        if (!selectedCountryId) {
+            color = nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
+        } else if (id === selectedCountryId) {
+            color = COLORS.SELECTED;
+        } else if (customNaps.includes(id)) {
+            color = COLORS.NAP;
+        } else if (directAllies.includes(id)) {
+            color = COLORS.ALLY_DIRECT;
+        } else if (directWars.includes(id)) {
+            color = COLORS.WAR_DIRECT;
+        } else if (enemyAllies.includes(id) && indirectAllies.includes(id) && isExtended) {
+            color = COLORS.BORDERLINE;
+        } else if (enemyAllies.includes(id)) {
+            color = COLORS.WAR_INDIRECT;
+        } else if (indirectAllies.includes(id) && isExtended) {
+            color = COLORS.ALLY_INDIRECT;
+        } else {
+            color = COLORS.DEFAULT_LAND;
+        }
+        colorMap.set(id, color);
+    });
+    const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
+    for (let [id, color] of colorMap.entries()) {
+        expr.push(id.toString(), color);
+    }
+    expr.push(COLORS.NEUTRAL_UNSELECTED);
+    return expr;
+}
+function flattenCoords(geometry) {
+    const result = [];
+    function extract(c) {
+        if (!c) return;
+        if (typeof c[0] === 'number') result.push(c);
+        else c.forEach(extract);
+    }
+    extract(geometry.coordinates);
+    return result;
+}
+
+function buildOriginalLabels() {
+    if (!baseGeoJSON || !labelsData.length) return;
+
+    // Indice delle regioni con bounding box e geometria
+    const regionIndex = [];
+    baseGeoJSON.features.forEach(f => {
+        const initId = f.properties?.initialCountryId;
+        if (!initId) return;
+        const coords = flattenCoords(f.geometry);
+        if (!coords.length) return;
+        let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+        coords.forEach(c => {
+            minLng = Math.min(minLng, c[0]);
+            maxLng = Math.max(maxLng, c[0]);
+            minLat = Math.min(minLat, c[1]);
+            maxLat = Math.max(maxLat, c[1]);
+        });
+        regionIndex.push({
+            initId,
+            minLng, maxLng, minLat, maxLat,
+            geometry: f.geometry,
+            numCoords: coords.length
+        });
+    });
+
+    // Funzione point-in-polygon (solo per Polygon/MultiPolygon)
+    function pointInPolygon(point, polygon) {
+        const x = point[0], y = point[1];
+        let inside = false;
+        function processRing(ring) {
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                const xi = ring[i][0], yi = ring[i][1];
+                const xj = ring[j][0], yj = ring[j][1];
+                const intersect = ((yi > y) != (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+        }
+        if (polygon.type === 'Polygon') {
+            processRing(polygon.coordinates[0]);
+        } else if (polygon.type === 'MultiPolygon') {
+            polygon.coordinates.forEach(poly => processRing(poly[0]));
+        }
+        return inside;
+    }
+
+    // Mappa: initialCountryId -> miglior capitale (flagSize maggiore)
+    const capitalMap = new Map();
+    labelsData.forEach(label => {
+        const coords = label.coordinates;
+        if (!coords) return;
+        // Trova la regione che contiene il punto
+        let bestRegion = null;
+        for (let region of regionIndex) {
+            if (coords[0] >= region.minLng && coords[0] <= region.maxLng &&
+                coords[1] >= region.minLat && coords[1] <= region.maxLat) {
+                if (pointInPolygon(coords, region.geometry)) {
+                    bestRegion = region;
+                    break;
+                }
+            }
+        }
+        if (bestRegion) {
+            const existing = capitalMap.get(bestRegion.initId);
+            const flagSize = label.properties.flagSize || 0;
+            if (!existing || flagSize > (existing.flagSize || 0)) {
+                capitalMap.set(bestRegion.initId, {
+                    coordinates: coords,
+                    flagSize: flagSize,
+                    label: label
+                });
+            }
+        }
+    });
+
+    // Fallback per nazioni senza capitale: usa centro della regione più grande
+    const centroidMap = new Map(); // initId -> { center, numCoords }
+    regionIndex.forEach(region => {
+        if (capitalMap.has(region.initId)) return;
+        const best = centroidMap.get(region.initId);
+        if (!best || region.numCoords > best.numCoords) {
+            // Calcola centro geometrico approssimato (media coordinate)
+            const coords = flattenCoords(region.geometry);
+            let sumLng = 0, sumLat = 0;
+            coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
+            const center = [sumLng / coords.length, sumLat / coords.length];
+            centroidMap.set(region.initId, { center, numCoords: region.numCoords });
+        }
+    });
+
+    // Costruisci originalLabelsData
+    originalLabelsData = [];
+    capitalMap.forEach((data, initId) => {
+        const nation = nationMap.get(initId);
+        const label = data.label;
+        originalLabelsData.push({
+            coordinates: data.coordinates,
+            properties: {
+                countryId: initId,
+                countryName: nation ? nation.name : label.properties.countryName,
+                countryCode: nation ? (nation.code || '').toLowerCase() : (label.properties.countryCode || '').toLowerCase(),
+                flagSize: label.properties.flagSize,
+                textSize: label.properties.textSize,
+                textColor: label.properties.textColor,
+                strokeColor: nationBaseColorMap.get(initId) || COLORS.DEFAULT_LAND
+            }
+        });
+    });
+    centroidMap.forEach((data, initId) => {
+        const nation = nationMap.get(initId);
+        if (!nation) return;
+        originalLabelsData.push({
+            coordinates: data.center,
+            properties: {
+                countryId: initId,
+                countryName: nation.name,
+                countryCode: (nation.code || '').toLowerCase(),
+                flagSize: 0.2,
+                textSize: 10,
+                textColor: '#cccccc',
+                strokeColor: nationBaseColorMap.get(initId) || COLORS.DEFAULT_LAND
+            }
+        });
+    });
+}
+function hashColor(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
+    const hue = Math.abs(h) % 360;
+    return `hsl(${hue}, 45%, 32%)`;
+}
 // ============================================================
 // LEGEND & STATS
 // ============================================================
 function updateDynamicLegend() {
     const box = document.getElementById('dynamic-legend');
-if (currentMode === 'blocs') {
-    const multiEntries = [...multiBlocMap.values()];
-    const multiHtml = multiEntries.length > 0
-        ? `<div class="legend-item">
-            <div class="dot" style="background:linear-gradient(135deg,${[...new Set(multiEntries.map(e=>e.colors[0]))][0]} 50%,${[...new Set(multiEntries.map(e=>e.colors[1]))][0]} 50%)"></div>
-            <span>Multi-bloc</span>
-           </div>`
-        : '';
-    box.innerHTML = `
-        <div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Western Bloc</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
-        ${multiHtml}
-        <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
-    `;
-    return;
-}
+    if (currentMode === 'blocs') {
+        const multiEntries = [...multiBlocMap.values()];
+        const multiHtml = multiEntries.length > 0
+            ? `<div class="legend-item">
+                <div class="dot" style="background:linear-gradient(135deg,${[...new Set(multiEntries.map(e=>e.colors[0]))][0]} 50%,${[...new Set(multiEntries.map(e=>e.colors[1]))][0]} 50%)"></div>
+                <span>Multi-bloc</span>
+               </div>`
+            : '';
+        box.innerHTML = `
+            <div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Olive union allies</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
+            ${multiHtml}
+            <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
+        `;
+        return;
+    }
+    if (currentMode === 'original') {
+        if (!selectedCountryId) {
+            box.innerHTML = `
+                <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
+                <div style="font-size:10px;color:#666;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px">Shows original owners<br>incl. conquered nations</div>
+            `;
+        } else {
+            box.innerHTML = `
+                <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_DIRECT}"></div><span>DIRECT WAR</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_INDIRECT}"></div><span>INDIRECT ENEMY</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_DIRECT}"></div><span>DIRECT ALLY</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
+                <div style="font-size:10px;color:#666;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px">Original territory borders</div>
+            `;
+        }
+        return;
+    }
     if (!selectedCountryId) {
         box.innerHTML = `
             <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
@@ -742,34 +915,37 @@ function updateStats() {
 }
 
 function updateSelectedDisplay() {
-    const display     = document.getElementById('selected-display');
+    const display = document.getElementById('selected-display');
     const nameDisplay = document.getElementById('selected-name-display');
     const flagWrapper = document.getElementById('flag-wrapper');
     if (!selectedCountryId) { display.style.display = 'none'; return; }
     const nation = nationMap.get(selectedCountryId);
     if (!nation) { display.style.display = 'none'; return; }
     nameDisplay.textContent = nation.name;
-    const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
-    let code = labelInfo?.properties?.countryCode?.toLowerCase() || nation.code?.toLowerCase() || '';
+    let code = '';
+    if (currentMode === 'original') {
+        const origLabel = originalLabelsData.find(l => l.properties.countryId === selectedCountryId);
+        code = origLabel?.properties?.countryCode || nation.code?.toLowerCase() || '';
+    } else {
+        const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
+        code = labelInfo?.properties?.countryCode?.toLowerCase() || nation.code?.toLowerCase() || '';
+    }
     flagWrapper.innerHTML = '';
     if (code) {
         const img = document.createElement('img');
         img.alt = `${nation.name} flag`;
         img.style.cssText = 'display:inline-block!important;width:24px!important;height:16px!important;object-fit:contain!important;border-radius:2px!important;border:1px solid #00d4ff!important;background:#1a1a1a!important;vertical-align:middle!important;';
         img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
-        img.onload  = () => img.style.border = '1px solid #2ecc71';
+        img.onload = () => img.style.border = '1px solid #2ecc71';
         img.onerror = () => { img.style.border = '1px solid #ff4747'; img.style.backgroundColor = '#ff4747'; };
         flagWrapper.appendChild(img);
     }
     display.style.display = 'block';
 }
 
-// ============================================================
-// MODALITÀ SWITCH
-// ============================================================
 function setMode(mode) {
     currentMode = mode;
-    renderMap(); // ricalcola colori e legenda
+    renderMap();
 }
 
 // ============================================================
@@ -781,6 +957,16 @@ function renderMap() {
     updateDynamicLegend();
     updateStats();
     updateSelectedDisplay();
+
+    const borderLayer = map.getLayer(LYR_BORDER);
+    const originalBorderLayer = map.getLayer('original-borders-line');
+    if (currentMode === 'original') {
+        if (borderLayer) map.setLayoutProperty(LYR_BORDER, 'visibility', 'none');
+        if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'visible');
+    } else {
+        if (borderLayer) map.setLayoutProperty(LYR_BORDER, 'visibility', 'visible');
+        if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'none');
+    }
 
     if (currentMode === 'blocs') {
         const expr = buildBlocColorExpression();
@@ -797,11 +983,10 @@ function renderMap() {
             map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', multiIds.length > 0 ? 'visible' : 'none');
         }
     } else {
-        // Nascondi il layer stripe in modalità diplomacy
         if (map.getLayer(LYR_MULTI_BLOC)) {
             map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
         }
-        // Rendering diplomacy
+
         const isExtended = document.getElementById('checkExtended').checked;
         let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
         if (selectedCountryId) {
@@ -813,12 +998,19 @@ function renderMap() {
                 enemyAllies    = getEnemyAllies(selectedCountryId);
             }
         }
-        const styleMap = {};
-        labelsData.forEach(l => {
-            if (l.properties?.countryId && l.properties?.strokeColor)
-                styleMap[l.properties.countryId] = l.properties.strokeColor;
-        });
-        const fillExpr = buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
+
+        let fillExpr;
+        if (currentMode === 'original') {
+            fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
+        } else {
+            const styleMap = {};
+            labelsData.forEach(l => {
+                if (l.properties?.countryId && l.properties?.strokeColor)
+                    styleMap[l.properties.countryId] = l.properties.strokeColor;
+            });
+            fillExpr = buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
+        }
+
         if (map.getLayer(LYR_FILL)) {
             map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
             map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
@@ -828,8 +1020,9 @@ function renderMap() {
     toggleLabels();
     if (labelCanvas) map.triggerRepaint();
 }
+
 // ============================================================
-// CANVAS LABEL OVERLAY (invariato)
+// CANVAS LABEL OVERLAY
 // ============================================================
 let labelCanvas = null;
 let labelCtx = null;
@@ -856,13 +1049,41 @@ function resizeLabelCanvas() {
 }
 
 function toggleLabels() {
-    // Il canvas rimane sempre visibile; la visibilità delle etichette nazioni è gestita in drawLabels()
     if (labelCanvas) map.triggerRepaint();
 }
 
+function drawBlocLabels(ctx, W, H) {
+    if (currentMode !== 'blocs') return;
+    const zoom = map.getZoom();
+    const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
+    const blocPositions = [
+        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
+        { name: 'OLIVE UNION ALLIES', lng: -50, lat: 30, color: COLORS.WESTERN_BLOC },
+        { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
+        { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
+        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP }
+    ];
+    blocPositions.forEach(b => {
+        const pt = map.project([b.lng, b.lat]);
+        const sx = pt.x, sy = pt.y;
+        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
+        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 4;
+        ctx.strokeText(b.name, sx, sy);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = b.color;
+        ctx.fillText(b.name, sx, sy);
+    });
+}
+
 function drawLabels() {
-    const BLOC_MARGIN = 30;   // margine per nomi blocchi
-    const NATION_MARGIN = 1;  // margine per nomi nazioni
+    const BLOC_MARGIN = 30;
+    const NATION_MARGIN = 1;
 
     if (!labelCanvas || !labelCtx || !labelsData.length) return;
     const showNations = document.getElementById('checkLabels').checked;
@@ -874,14 +1095,12 @@ function drawLabels() {
     ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    // Array per memorizzare le bounding box dei nomi già disegnati (nazioni)
     let drawnNationBoxes = [];
-
-    // 1. Disegna i nomi dei blocchi (solo in modalità blocs) e memorizza le loro bounding box
     let blocBBoxes = [];
+
+    // Nomi dei blocchi (solo modalità blocs)
     if (currentMode === 'blocs') {
         drawBlocLabels(ctx, W, H);
-        // Raccogli le coordinate dei blocchi disegnati (per la collisione con le nazioni)
         const zoom = map.getZoom();
         const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
         ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
@@ -908,26 +1127,23 @@ function drawLabels() {
         });
     }
 
-    // 2. Se le etichette delle nazioni sono disattivate, fermati qui
+    // Se le etichette nazioni sono disattivate, esci
     if (!showNations) {
         ctx.restore();
         return;
     }
 
-    // 3. Prepara i dati delle nazioni da disegnare
+    // In modalità original, mostriamo comunque le etichette (ma con colori appropriati)
     const zoom = map.getZoom();
-    // Ordina per flagSize decrescente (i paesi più importanti per primi)
-    const sorted = [...labelsData].sort((a, b) =>
-        (b.properties.flagSize || 0) - (a.properties.flagSize || 0)
-    );
+    // usa labelsData o originalLabelsData in base alla modalità
+    const sourceLabels = currentMode === 'original' ? originalLabelsData : labelsData;
+    const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
 
-    // Funzione helper per controllare collisione tra due rettangoli
     function intersects(box1, box2) {
         return !(box2.xMin > box1.xMax || box2.xMax < box1.xMin ||
                  box2.yMin > box1.yMax || box2.yMax < box1.yMin);
     }
 
-    // Itera su tutte le nazioni
     sorted.forEach(label => {
         const props = label.properties;
         const flagSize = props.flagSize || 0.2;
@@ -941,21 +1157,19 @@ function drawLabels() {
         const sx = pt.x, sy = pt.y;
         if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
 
-        // Calcola dimensioni del testo (con bandiera)
         const nameStr = props.countryName?.toUpperCase() || '';
         const baseSize = props.textSize || 10;
         let scale = 1.0;
-        if (zoom < 2.5)      scale = 1.4;
-        else if (zoom < 3)   scale = 1.3;
-        else if (zoom < 4)   scale = 1.2;
-        else if (zoom < 5)   scale = 1.0;
-        else                 scale = 0.9;
+        if (zoom < 2.5) scale = 1.4;
+        else if (zoom < 3) scale = 1.3;
+        else if (zoom < 4) scale = 1.2;
+        else if (zoom < 5) scale = 1.0;
+        else scale = 0.9;
         const fontSize = Math.round(baseSize * scale);
         ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
         const textWidth = ctx.measureText(nameStr).width;
         const textHeight = fontSize;
 
-        // Calcola bounding box del nome nazione (con margine di 5px)
         const nationBox = {
             xMin: sx - textWidth / 2 - NATION_MARGIN,
             xMax: sx + textWidth / 2 + NATION_MARGIN,
@@ -963,32 +1177,22 @@ function drawLabels() {
             yMax: sy + textHeight / 2 + NATION_MARGIN
         };
 
-        // Controllo collisione con blocchi (solo in modalità blocs)
         if (currentMode === 'blocs') {
             let collideBloc = false;
             for (let box of blocBBoxes) {
-                if (intersects(nationBox, box)) {
-                    collideBloc = true;
-                    break;
-                }
+                if (intersects(nationBox, box)) { collideBloc = true; break; }
             }
             if (collideBloc) return;
         }
 
-        // Controllo collisione con altri nomi di nazioni già disegnati
         let collideNation = false;
         for (let existingBox of drawnNationBoxes) {
-            if (intersects(nationBox, existingBox)) {
-                collideNation = true;
-                break;
-            }
+            if (intersects(nationBox, existingBox)) { collideNation = true; break; }
         }
         if (collideNation) return;
 
-        // Nessuna collisione: possiamo disegnare
         drawnNationBoxes.push(nationBox);
 
-        // Calcola bandiera
         const code = (props.countryCode || '').toLowerCase();
         const flagW = Math.round(16 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
         const flagH = Math.round(11 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
@@ -1000,13 +1204,14 @@ function drawLabels() {
             ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
         }
 
-        // Colore del testo
+        // Colore del testo in base alla modalità
         let textColor;
+        const cId = props.countryId;
         if (currentMode === 'blocs') {
-            // In modalità blocs non dovremmo arrivare qui perché i nomi nazioni sono già filtrati,
-            // ma se arrivano usa il colore del blocco
-            const cId = props.countryId;
             textColor = blocColorMap.get(cId) || '#cccccc';
+            if (selectedCountryId === cId) textColor = '#ffffff';
+        } else if (currentMode === 'original') {
+            textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
             if (selectedCountryId === cId) textColor = '#ffffff';
         } else {
             textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
@@ -1031,8 +1236,6 @@ function drawLabels() {
 
     ctx.restore();
 }
-
-
 const flagImageCache = new Map();
 function loadFlagImage(code) {
     if (!code || flagImageCache.has(code)) return;
@@ -1089,7 +1292,7 @@ function setupMapLayers() {
         map.getSource(SRC_LABELS).setData(labelsGeoJSON);
     }
 
-if (!map.getLayer(LYR_FILL)) {
+    if (!map.getLayer(LYR_FILL)) {
         map.addLayer({
             id: LYR_FILL,
             type: 'fill',
@@ -1098,7 +1301,22 @@ if (!map.getLayer(LYR_FILL)) {
         });
     }
 
-    // Layer stripe multi-bloc (sopra il fill, sotto i bordi)
+    // Calcola i confini originali (basati su initialCountryId) - dopo il fill layer
+    const originalBordersMesh = getOriginalBordersMesh(topoData);
+    if (!map.getSource('original-borders-src')) {
+        map.addSource('original-borders-src', {
+            type: 'geojson',
+            data: originalBordersMesh
+        });
+        map.addLayer({
+            id: 'original-borders-line',
+            type: 'line',
+            source: 'original-borders-src',
+            paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 },
+            layout: { visibility: 'none' }
+        });
+    }
+
     createAndAddStripePatterns();
     if (!map.getLayer(LYR_MULTI_BLOC)) {
         const multiIds = [...multiBlocMap.keys()];
@@ -1158,10 +1376,14 @@ if (!map.getLayer(LYR_FILL)) {
 
     renderMap();
 }
-
 function onRegionClick(e) {
     if (!e.features || e.features.length === 0) return;
-    const cId = e.features[0].properties.countryId;
+    let cId;
+    if (currentMode === 'original') {
+        cId = e.features[0].properties.initialCountryId;
+    } else {
+        cId = e.features[0].properties.countryId;
+    }
     selectedCountryId = (selectedCountryId === cId) ? null : cId;
     renderMap();
     if (selectedCountryId) {
@@ -1216,6 +1438,29 @@ async function refreshData() {
         buildBlocMap();
         popolaListe();
         setupMapLayers();
+
+        // Colori base da labelsData (nazioni con territorio attuale)
+        nationBaseColorMap.clear();
+        labelsData.forEach(label => {
+            if (label.properties?.countryId && label.properties?.strokeColor) {
+                nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor);
+            }
+        });
+        // Nazioni conquistate (non presenti in labelsData): colore generato
+        nazioniGlobal.forEach(n => {
+            if (!nationBaseColorMap.has(n._id)) {
+                nationBaseColorMap.set(n._id, n.color || n.mapColor || hashColor(n._id));
+            }
+        });
+        // Costruisci le etichette originali
+         buildOriginalLabels();
+        // Precarica bandiere anche per le nazioni originali
+        originalLabelsData.forEach(label => {
+            const code = label.properties?.countryCode?.toLowerCase();
+            if (code && !flagImageCache.has(code)) {
+                loadFlagImage(code);
+            }
+        });
         showToast('Strategic data loaded successfully', 'success');
     } catch (e) {
         console.error('Data Error:', e);
@@ -1318,9 +1563,6 @@ function resetDiplomazia() {
     showToast('Reset complete', 'info');
 }
 
-// ============================================================
-// DOM READY
-// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
     document.getElementById('napInput').addEventListener('keypress',   e => { if (e.key === 'Enter') aggiungiNap(); });
