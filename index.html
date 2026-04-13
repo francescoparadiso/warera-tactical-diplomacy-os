@@ -6,7 +6,7 @@
     <title>WarEra Diplomacy OS - MapLibre</title>
     <!--Umami analytics-->
     <script defer src="https://cloud.umami.is/script.js" data-website-id="9027ca13-bcf7-41c6-b626-9e7e25e3c4fa"></script>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
@@ -402,7 +402,9 @@ const COLORS = {
     WESTERN_BLOC:     "#55a5d9",   // blu simile a Olive Union
     AFRICAN_UNION:    "#e67e22",   // arancione
     ASIAN_FEDERATION: "#8e44ad",   // viola
-    ICDP:             "#c0392b"    // rosso
+    ICDP:             "#c0392b",    // rosso
+    HOLY_LEAGUE:      "#FFD700"    // Oro
+
 };
 
 // Source/layer IDs
@@ -430,6 +432,8 @@ const africanCodes = new Set([
     'AO','DZ','BJ','BW','BF','BI','CM','CV','CF','KM','CD','DJ','EG','GQ','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MW','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
 ]);
 const westernBlocCodes = new Set(['FR', 'NL', 'BE', 'AR', 'CL', 'US']);
+const holyleagueBlocCodes = new Set(['CH', 'VA', 'JO', 'LB', 'ML', 'CY']);
+
 
 function buildBlocMap() {
     blocColorMap.clear();
@@ -445,6 +449,8 @@ function buildBlocMap() {
         if (asianFederationCodes.has(code)) hits.push({ name: 'asian',   color: COLORS.ASIAN_FEDERATION });
         if (africanCodes.has(code))         hits.push({ name: 'african', color: COLORS.AFRICAN_UNION });
         if (westernBlocCodes.has(code))     hits.push({ name: 'western', color: COLORS.WESTERN_BLOC }); 
+        if (holyleagueBlocCodes.has(code))  hits.push({ name: 'holy', color: COLORS.HOLY_LEAGUE }); 
+
 
         if (hits.length === 0) return;
 
@@ -857,6 +863,8 @@ function updateDynamicLegend() {
             <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
             <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
             <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.HOLY_LEAGUE}"></div><span>Holy League</span></div>
+
             ${multiHtml}
             <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
         `;
@@ -1064,7 +1072,8 @@ function drawBlocLabels(ctx, W, H) {
         { name: 'OLIVE UNION ALLIES', lng: -50, lat: 30, color: COLORS.WESTERN_BLOC },
         { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
         { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
-        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP }
+        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP },
+        { name: 'HOLY LEAGUE', lng: 35, lat: 35, color: COLORS.HOLY_LEAGUE }
     ];
     blocPositions.forEach(b => {
         const pt = map.project([b.lng, b.lat]);
@@ -1112,7 +1121,8 @@ function drawLabels() {
             { name: 'WESTERN BLOC', lng: -50, lat: 30 },
             { name: 'AFRICAN UNION', lng: -10, lat: -20 },
             { name: 'ASIAN FEDERATION', lng: 90, lat: -15 },
-            { name: 'ICDP', lng: 20, lat: 52 }
+            { name: 'ICDP', lng: 20, lat: 52 },
+            { name: 'HOLY LEAGUE', lng: 35, lat: 35 }
         ];
         blocPositions.forEach(b => {
             const pt = map.project([b.lng, b.lat]);
