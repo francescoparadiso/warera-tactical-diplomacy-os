@@ -311,6 +311,13 @@
                         <span class="slider"></span>
                     </div>
                 </label>
+                <label class="switch-container" id="bloc-original-switch-container" style="display: none;">
+                    <span class="switch-label">🏛️ Bloc Colors in Original</span>
+                    <div class="switch">
+                        <input type="checkbox" id="checkBlocInOriginal" onchange="renderMap()">
+                        <span class="slider"></span>
+                    </div>
+                </label>
             </div>
         </div>
     </div>
@@ -385,6 +392,7 @@ let labelsData = [];
 
 // Modalità corrente: 'diplomacy' o 'blocs' o 'original'
 let currentMode = 'diplomacy';
+let useBlocColorsInOriginal = false;
 
 const COLORS = {
     SELECTED:         "#ffcc00",
@@ -669,6 +677,18 @@ function buildBlocColorExpression() {
     return expr;
 }
 
+function buildOriginalBlocColorExpression() {
+    const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
+    for (let [id, color] of blocColorMap.entries()) {
+        if (multiBlocMap.has(id)) continue;
+        expr.push(id, color);
+    }
+    for (let [id, { colors }] of multiBlocMap.entries()) {
+        expr.push(id, colors[0]);
+    }
+    expr.push(COLORS.DEFAULT_LAND);
+    return expr;
+}
 function buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended) {
     const colorMap = new Map();
     nazioniGlobal.forEach(n => {
@@ -956,10 +976,24 @@ function updateSelectedDisplay() {
 
 function setMode(mode) {
     currentMode = mode;
+    updateBlocSwitchVisibility();
     if (window.umami) umami.track('mode-change', { mode: mode });
     renderMap();
 }
-
+function updateBlocSwitchVisibility() {
+    const container = document.getElementById('bloc-original-switch-container');
+    if (container) {
+        container.style.display = currentMode === 'original' ? 'flex' : 'none';
+    }
+}
+function shouldShowBlocLabels() {
+    if (currentMode === 'blocs') return true;
+    if (currentMode === 'original') {
+        const useBlocColors = document.getElementById('checkBlocInOriginal')?.checked || false;
+        return useBlocColors;
+    }
+    return false;
+}
 // ============================================================
 // CORE MAP RENDER
 // ============================================================
@@ -1000,6 +1034,7 @@ function renderMap() {
         }
 
         const isExtended = document.getElementById('checkExtended').checked;
+        
         let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
         if (selectedCountryId) {
             const target = nationMap.get(selectedCountryId);
@@ -1013,8 +1048,14 @@ function renderMap() {
 
         let fillExpr;
         if (currentMode === 'original') {
-            fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
+            useBlocColorsInOriginal = document.getElementById('checkBlocInOriginal')?.checked || false;
+            if (useBlocColorsInOriginal) {
+                fillExpr = buildOriginalBlocColorExpression();
+            } else {
+                fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
+            }
         } else {
+            // modalità diplomacy standard
             const styleMap = {};
             labelsData.forEach(l => {
                 if (l.properties?.countryId && l.properties?.strokeColor)
@@ -1064,13 +1105,13 @@ function toggleLabels() {
     if (labelCanvas) map.triggerRepaint();
 }
 
-function drawBlocLabels(ctx, W, H) {
-    if (currentMode !== 'blocs') return;
+function drawBlocLabels(ctx, W, H, force = false) {
+    if (!force && currentMode !== 'blocs') return;
     const zoom = map.getZoom();
     const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
     const blocPositions = [
         { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
-        { name: 'OLIVE UNION ALLIES', lng: -50, lat: 30, color: COLORS.WESTERN_BLOC },
+        { name: 'OLIVE UNION ALLIES', lng: -70, lat: 30, color: COLORS.WESTERN_BLOC },
         { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
         { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
         { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP },
@@ -1093,6 +1134,44 @@ function drawBlocLabels(ctx, W, H) {
         ctx.fillText(b.name, sx, sy);
     });
 }
+function drawAndCollectBlocLabels(ctx, W, H) {
+    const blocBBoxes = [];
+    const zoom = map.getZoom();
+    const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
+    ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+    const blocPositions = [
+        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
+        { name: 'OLIVE UNION ALLIES', lng: -70, lat: 30, color: COLORS.WESTERN_BLOC },
+        { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
+        { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
+        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP },
+        { name: 'HOLY LEAGUE', lng: 35, lat: 35, color: COLORS.HOLY_LEAGUE }
+    ];
+    const BLOC_MARGIN = 30;
+    blocPositions.forEach(b => {
+        const pt = map.project([b.lng, b.lat]);
+        if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
+            const metrics = ctx.measureText(b.name);
+            const textWidth = metrics.width;
+            const textHeight = fontSize;
+            blocBBoxes.push({
+                xMin: pt.x - textWidth / 2 - BLOC_MARGIN,
+                xMax: pt.x + textWidth / 2 + BLOC_MARGIN,
+                yMin: pt.y - textHeight / 2 - BLOC_MARGIN,
+                yMax: pt.y + textHeight / 2 + BLOC_MARGIN
+            });
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4;
+            ctx.strokeText(b.name, pt.x, pt.y);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = b.color;
+            ctx.fillText(b.name, pt.x, pt.y);
+        }
+    });
+    return blocBBoxes;
+}
 
 function drawLabels() {
     const BLOC_MARGIN = 30;
@@ -1111,34 +1190,9 @@ function drawLabels() {
     let drawnNationBoxes = [];
     let blocBBoxes = [];
 
-    // Nomi dei blocchi (solo modalità blocs)
-    if (currentMode === 'blocs') {
-        drawBlocLabels(ctx, W, H);
-        const zoom = map.getZoom();
-        const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
-        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-        const blocPositions = [
-            { name: 'OLIVE UNION', lng: 30, lat: 40 },
-            { name: 'WESTERN BLOC', lng: -50, lat: 30 },
-            { name: 'AFRICAN UNION', lng: -10, lat: -20 },
-            { name: 'ASIAN FEDERATION', lng: 90, lat: -15 },
-            { name: 'ICDP', lng: 20, lat: 52 },
-            { name: 'HOLY LEAGUE', lng: 35, lat: 35 }
-        ];
-        blocPositions.forEach(b => {
-            const pt = map.project([b.lng, b.lat]);
-            if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
-                const metrics = ctx.measureText(b.name);
-                const textWidth = metrics.width;
-                const textHeight = fontSize;
-                blocBBoxes.push({
-                    xMin: pt.x - textWidth / 2 - BLOC_MARGIN,
-                    xMax: pt.x + textWidth / 2 + BLOC_MARGIN,
-                    yMin: pt.y - textHeight / 2 - BLOC_MARGIN,
-                    yMax: pt.y + textHeight / 2 + BLOC_MARGIN
-                });
-            }
-        });
+    // Disegna i nomi dei blocchi e raccogli le bounding box se necessario
+    if (shouldShowBlocLabels()) {
+        blocBBoxes = drawAndCollectBlocLabels(ctx, W, H);
     }
 
     // Se le etichette nazioni sono disattivate, esci
@@ -1147,9 +1201,7 @@ function drawLabels() {
         return;
     }
 
-    // In modalità original, mostriamo comunque le etichette (ma con colori appropriati)
     const zoom = map.getZoom();
-    // usa labelsData o originalLabelsData in base alla modalità
     const sourceLabels = currentMode === 'original' ? originalLabelsData : labelsData;
     const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
 
@@ -1191,7 +1243,8 @@ function drawLabels() {
             yMax: sy + textHeight / 2 + NATION_MARGIN
         };
 
-        if (currentMode === 'blocs') {
+        // Controllo collisione con blocchi
+        if (shouldShowBlocLabels()) {
             let collideBloc = false;
             for (let box of blocBBoxes) {
                 if (intersects(nationBox, box)) { collideBloc = true; break; }
@@ -1199,6 +1252,7 @@ function drawLabels() {
             if (collideBloc) return;
         }
 
+        // Controllo collisione con altri nomi di nazioni già disegnati
         let collideNation = false;
         for (let existingBox of drawnNationBoxes) {
             if (intersects(nationBox, existingBox)) { collideNation = true; break; }
@@ -1218,7 +1272,6 @@ function drawLabels() {
             ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
         }
 
-        // Colore del testo in base alla modalità
         let textColor;
         const cId = props.countryId;
         if (currentMode === 'blocs') {
@@ -1453,6 +1506,7 @@ async function refreshData() {
         buildBlocMap();
         popolaListe();
         setupMapLayers();
+        updateBlocSwitchVisibility();
 
         // Colori base da labelsData (nazioni con territorio attuale)
         nationBaseColorMap.clear();
