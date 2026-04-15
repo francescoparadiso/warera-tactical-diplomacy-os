@@ -12,7 +12,7 @@
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
     <style>
-        /* tutti gli stili originali invariati */
+        /* ===== STILI ORIGINALI (INVARIATI) ===== */
         * { box-sizing: border-box; }
         body {
             margin: 0;
@@ -25,7 +25,7 @@
             height: 100vh;
             width: 100vw;
         }
-
+        
         /* Loading */
         #loading-overlay {
             position: fixed;
@@ -68,57 +68,29 @@
         }
         .toast.error { border-left-color: #ff4747; }
         .toast.success { border-left-color: #2ecc71; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+        /* Overlay e pannelli */
+        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+        .panel {
+            background: rgba(10,10,10,0.95);
+            border: 1px solid #333;
+            padding: 16px;
+            border-radius: 12px;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
         }
 
-/* Panels - collassabili su tutte le dimensioni (desktop e mobile) */
-.overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
-.panel {
-    background: rgba(10,10,10,0.95);
-    border: 1px solid #333;
-    padding: 16px;
-    border-radius: 12px;
-    pointer-events: auto;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    backdrop-filter: blur(10px);
-}
-#top-left { top: 20px; left: 20px; width: 340px; }
-#top-right { top: 20px; right: 20px; width: 320px; }
-#legend-container { bottom: 30px; left: 20px; }
-#stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
+        /* Legenda */
+        #legend-container { bottom: 30px; left: 20px; }
+        #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
 
-.stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-item { display: flex; flex-direction: column; align-items: center; }
-.stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
-
-.panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    user-select: none;
-}
-.panel-content {
-    transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
-    overflow: hidden;
-}
-.panel-content.collapsed {
-    max-height: 0 !important;
-    opacity: 0;
-    margin-top: 0 !important;
-    pointer-events: none;
-}
-.collapse-icon {
-    font-size: 18px;
-    color: #00d4ff;
-    transition: transform 0.3s;
-    cursor: pointer;
-}
-.collapse-icon.collapsed {
-    transform: rotate(-90deg);
-}
+        .stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
 
         #stats-chip {
             display: none;
@@ -134,33 +106,100 @@
         .stats-chip-item { display: flex; align-items: center; gap: 6px; }
         .stats-chip-value { color: #00d4ff; font-weight: bold; }
 
-        @media (max-width: 768px) {
-            #top-left, #top-right { left: 10px; right: 10px; width: calc(100% - 20px); max-width: none; }
-            #top-left { top: 10px; }
-            #top-right { top: auto; bottom: 80px; max-height: 35vh; overflow-y: visible; }
-            #legend-container { bottom: 10px; left: 10px; width: auto; }
-            #stats-bar { display: none; }
-            #stats-chip { display: block; position: fixed; bottom: 20px; right: 20px; z-index: 1001; }
-            .panel { padding: 12px; }
-            .panel-content { max-height: 300px; }
-            #top-left .panel-content, #top-right .panel-content { margin-top: 12px; }
-            input[type="text"], button, select { padding: 12px; font-size: 14px; }
+        /* Hamburger menu */
+        #hamburger-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 2000;
+            width: 48px;
+            height: 48px;
+            background: rgba(10,10,10,0.95);
+            border: 1px solid #00d4ff;
+            color: #00d4ff;
+            border-radius: 12px;
+            font-size: 24px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        .options-menu {
-            margin-top: 16px;
-            border-top: 1px solid #333;
-            padding-top: 16px;
-            display: flex; flex-direction: column; gap: 12px;
+        #hamburger-menu {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            z-index: 1999;
+            background: rgba(10,10,10,0.95);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+            width: 320px;
+            max-width: calc(100vw - 40px);
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+            pointer-events: auto;
         }
+
+        #hamburger-menu.visible {
+            display: flex;
+        }
+
+        .menu-section {
+            border-bottom: 1px solid #333;
+            padding-bottom: 12px;
+            margin-bottom: 8px;
+        }
+        .menu-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .section-title strong {
+            font-size: 12px;
+            color: #00d4ff;
+            letter-spacing: 0.5px;
+        }
+        .badge {
+            background: #00d4ff;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        /* Switch */
         .switch-container {
             display: flex; align-items: center; justify-content: space-between; gap: 10px;
             cursor: pointer; padding: 6px 0;
         }
         .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
         .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
+.switch input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+    margin: 0;
+}        .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
             background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444;
         }
@@ -171,6 +210,33 @@
         input:checked + .slider { background: linear-gradient(135deg, #0062ff, #00d4ff); border-color: #00d4ff; }
         input:checked + .slider:before { transform: translateX(20px); }
 
+        /* Bottoni toggle per modalità colorazione */
+        .mode-toggle-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px 4px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #aaa;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .mode-btn.active {
+            background: #00d4ff;
+            color: #000;
+            border-color: #00d4ff;
+        }
+
+        /* Legenda e toggle */
         .legend-content {
             transition: opacity 0.3s ease, transform 0.3s ease;
             transform-origin: bottom left;
@@ -212,7 +278,7 @@
         .btn-reset { background: #333; }
         .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
 
-        /* MapLibre popup custom */
+        /* Popup */
         .maplibregl-popup-content {
             background: rgba(10,10,10,0.95) !important;
             color: white !important;
@@ -227,159 +293,220 @@
             display: flex; justify-content: space-between; align-items: center;
             background: #1a1a1a; padding: 10px 14px; margin-top: 8px;
             border-left: 4px solid #00d4ff; border-radius: 6px; font-size: 13px;
-            animation: slideIn 0.2s ease;
         }
         .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0 4px; transition: transform 0.2s; }
         .remove-nap:hover { transform: scale(1.2); }
-        .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
-        .section-title strong { font-size: 13px; color: #00d4ff; letter-spacing: 0.5px; }
-        .badge { background: #00d4ff; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
+
         .search-container { display: flex; gap: 8px; }
         .search-container button { margin-top: 0; width: auto; padding: 10px 16px; }
         .nap-input-container { display: flex; gap: 8px; }
         .nap-input-container input { flex: 1; }
         .nap-input-container button { margin-top: 0; width: 80px; background: #00d4ff; color: #000; }
-        #napList { max-height: 200px; overflow-y: auto; margin-top: 8px; }
-        #napList::-webkit-scrollbar { width: 6px; }
-        #napList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
-        #napList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        #napList, #externalNapList { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+        #napList::-webkit-scrollbar, #externalNapList::-webkit-scrollbar { width: 6px; }
+        #napList::-webkit-scrollbar-track, #externalNapList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
+        #napList::-webkit-scrollbar-thumb, #externalNapList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
         .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
         .selected-info {
             background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px;
             margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2);
         }
         .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
 
-        /* MapLibre ctrl hide */
+        /* Nascondi controlli nativi MapLibre (incluso zoom +/-) */
+        .maplibregl-ctrl-top-right { display: none !important; }
         .maplibregl-ctrl-bottom-left,
         .maplibregl-ctrl-bottom-right { display: none !important; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            #legend-container { bottom: 10px; left: 10px; width: auto; }
+            #stats-bar { display: none; }
+            #stats-chip { display: block; position: fixed; bottom: 20px; right: 20px; z-index: 1001; }
+            .panel { padding: 12px; }
+            #hamburger-menu { width: calc(100vw - 40px); max-height: 70vh; }
+        }
+
+        /* Nascondi vecchi pannelli */
+        #top-left, #top-right, #floating-controls { display: none !important; }
+        #manual-nap-section, #external-nap-section {
+    transition: max-height 0.3s ease;
+}
+/* Evidenziazione per etichette del toggle borders */
+.border-label {
+    transition: color 0.2s, font-weight 0.2s;
+}
+.border-label.active {
+    color: #00d4ff !important;
+    font-weight: 700;
+}
+/* Container toggle borders in alto a destra */
+#border-toggle-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1500;
+    background: rgba(10, 10, 10, 0.6); /* semi-trasparente */
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 40px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    pointer-events: auto;
+}
+
+#border-toggle-container .switch-label {
+    font-size: 11px;
+    color: #ccc;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+    cursor: default;
+}
+
+#border-toggle-container .border-label.active {
+    color: #00d4ff !important;
+    font-weight: 700;
+}
+
+/* Nasconde il vecchio toggle dentro l'hamburger */
+#hamburger-menu .switch-container:first-of-type {
+    display: none !important;
+}
     </style>
 </head>
 <body>
-
+<!-- TOGGLE BORDERS IN ALTO A DESTRA -->
+<div id="border-toggle-container">
+    <span id="label-actual" class="switch-label border-label active">🗺️ Current</span>
+    <div class="switch">
+<input type="checkbox" id="toggle-borders">
+        <span class="slider"></span>
+    </div>
+    <span id="label-original" class="switch-label border-label">Original</span>
+</div>
+<!-- LOADING OVERLAY -->
 <div id="loading-overlay">
     <div class="loader">
         <div class="loader-spinner"></div>
         <div>Loading Strategic Data...</div>
     </div>
 </div>
+
+<!-- TOAST CONTAINER -->
 <div id="toast-container"></div>
 
+<!-- DATALIST PER AUTOCOMPLETAMENTO -->
 <datalist id="nazioniList"></datalist>
 
-<!-- Top Left Panel -->
-<div id="top-left" class="overlay">
-    <div class="panel">
-        <div class="panel-header" onclick="togglePanel('panel-left')">
-            <div class="section-title">
-                <strong>⚔️ WARERA DIPLOMACY OS</strong>
-                <span class="badge">v3.0</span>
-            </div>
-            <span class="collapse-icon" id="icon-left">▼</span>
+<!-- ===== HAMBURGER MENU UNIFICATO (MODIFICATO) ===== -->
+<button id="hamburger-btn">☰</button>
+<div id="hamburger-menu">
+    <!-- Sezione: Mappa e Visualizzazione -->
+    <div class="menu-section">
+        <div class="section-title">
+            <strong>🗺️ MAPPA</strong>
         </div>
-        <div id="panel-left" class="panel-content">
-            <!-- Selettore fonte confini -->
-            <select id="map-source-selector" onchange="updateMapAndRender()">
-                <option value="actual" selected>🗺️ Actual Borders</option>
-                <option value="original">🗺️ Original Borders</option>
-            </select>
-            <!-- Selettore modalità colorazione -->
-            <select id="coloring-mode-selector" onchange="updateMapAndRender()" style="margin-top: 8px;">
-                <option value="diplomacy" selected>⚔️ Diplomacy</option>
-                <option value="blocs">🏛️ Alliance Blocs</option>
-            </select>
-            <div id="selected-display" class="selected-info" style="display: none;">
-                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span id="flag-wrapper" style="display: inline-block; vertical-align: middle;"></span>
-                    <span class="selected-name" id="selected-name-display"></span>
+
+        <!-- Bottoni affiancati per Diplomacy / Alliance Blocs -->
+        <div class="mode-toggle-group">
+            <div id="mode-diplomacy" class="mode-btn active" onclick="setColoringMode('diplomacy')">⚔️ Diplomacy</div>
+            <div id="mode-blocs" class="mode-btn" onclick="setColoringMode('blocs')">🏛️ Alliance Blocs</div>
+        </div>
+
+        <!-- Toggles raggruppati (Extended, Show Names, Exclude External NAPs) -->
+        <label class="switch-container">
+            <span class="switch-label">🌐 Extended Diplomacy</span>
+            <div class="switch">
+                <input type="checkbox" id="checkExtended" onchange="renderMap()">
+                <span class="slider"></span>
+            </div>
+        </label>
+        <label class="switch-container">
+            <span class="switch-label">🏷️ Show Nation Names</span>
+            <div class="switch">
+                <input type="checkbox" id="checkLabels" checked onchange="toggleLabels()">
+                <span class="slider"></span>
+            </div>
+        </label>
+        <label class="switch-container">
+            <span class="switch-label">🚫 Exclude external NAPs</span>
+            <div class="switch">
+                <input type="checkbox" id="checkExcludeExternalNaps" onchange="renderMap()">
+                <span class="slider"></span>
+            </div>
+        </label>
+    </div>
+
+    <!-- Sezione: Nazione selezionata e ricerca -->
+    <div class="menu-section">
+        <div id="selected-display" class="selected-info" style="display: none;">
+            <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="flag-wrapper"></span>
+                <span class="selected-name" id="selected-name-display"></span>
+            </div>
+        </div>
+        <div class="search-container">
+            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
+            <button onclick="cercaNazione()">🔍</button>
+            <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
+        </div>
+    </div>
+
+    <!-- Sezione: NAP Manuali (divisa in due sottosezioni) -->
+    <div class="menu-section">
+        <div class="section-title">
+            <strong>🤝 MANUAL NAP</strong>
+            <span class="badge" id="nap-count">0</span>
+        </div>
+        <!-- Input per aggiungere NAP -->
+        <div class="nap-input-container">
+            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
+            <button onclick="aggiungiNap()">ADD</button>
+        </div>
+        <!-- Lista NAP manuali (collassabile) -->
+        <div style="margin-top: 12px;">
+            <div class="section-title" style="cursor: pointer;" onclick="toggleNapSection('manual-nap-section')">
+                <strong style="font-size: 11px; color: #aaa;">📝 Current manual NAPs</strong>
+                <span id="manual-nap-icon" style="margin-left: auto;">▶</span>
+            </div>
+            <div id="manual-nap-section" style="max-height: 0; overflow-y: auto;">
+                <div id="napList">
+                    <div class="empty-state">No manual NAPs set</div>
                 </div>
             </div>
-            <div class="search-container">
-                <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
-                <button onclick="cercaNazione()">🔍</button>
-                <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
-            </div>
-            <div class="options-menu">
-                <label class="switch-container">
-                    <span class="switch-label">🌐 Extended Diplomacy</span>
-                    <div class="switch">
-                        <input type="checkbox" id="checkExtended" onchange="renderMap()">
-                        <span class="slider"></span>
-                    </div>
-                </label>
-                <label class="switch-container">
-                    <span class="switch-label">🏷️ Show Nation Names</span>
-                    <div class="switch">
-                        <input type="checkbox" id="checkLabels" checked onchange="toggleLabels()">
-                        <span class="slider"></span>
-                    </div>
-                </label>
+        </div>
+    </div>
+
+    <!-- Sezione: NAP Esterni (read-only) -->
+    <div class="menu-section">
+        <div class="section-title" style="cursor: pointer;" onclick="toggleNapSection('external-nap-section')">
+            <strong style="font-size: 11px; color: #aaa;">📄 External NAPs (read-only)</strong>
+            <span id="external-nap-icon" style="margin-left: auto;">▶</span>
+        </div>
+        <div id="external-nap-section" style="max-height: 0; overflow-y: auto;">
+            <div id="externalNapList">
+                <div class="empty-state">No external NAPs loaded</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Top Right Panel -->
-<div id="top-right" class="overlay">
-    <div class="panel">
-        <div class="panel-header" onclick="togglePanel('panel-right')">
-            <div class="section-title">
-                <strong>🤝 MANUAL NAP (PRIORITY)</strong>
-                <span class="badge" id="nap-count">0</span>
-            </div>
-            <span class="collapse-icon" id="icon-right">▼</span>
-        </div>
-        <div id="panel-right" class="panel-content">
-            <div class="nap-input-container">
-                <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
-                <button onclick="aggiungiNap()">ADD</button>
-            </div>
-            <!-- Sezione NAP manuali (collassabile) -->
-            <div style="margin-top: 12px;">
-                <div class="section-title" onclick="toggleNapSection('manual-nap-section')" style="cursor: pointer; margin-bottom: 8px;">
-                    <strong style="font-size: 11px; color: #aaa; text-transform: uppercase;">📝 Manual NAPs</strong>
-                    <span id="manual-nap-icon" style="font-size: 12px; color: #00d4ff;">▼</span>
-                </div>
-                <div id="manual-nap-section" style="max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease;">
-                    <div id="napList" style="max-height: 200px; overflow-y: auto;">
-                        <div class="empty-state">No manual NAPs set</div>
-                    </div>
-                </div>
-            </div>
-            <!-- Sezione NAP esterni (collassabile) -->
-            <div style="margin-top: 12px; border-top: 1px solid #333; padding-top: 8px;">
-                <div class="section-title" onclick="toggleNapSection('external-nap-section')" style="cursor: pointer; margin-bottom: 8px;">
-                    <strong style="font-size: 11px; color: #aaa; text-transform: uppercase;">📄 External NAPs (read-only)</strong>
-                    <span id="external-nap-icon" style="font-size: 12px; color: #00d4ff;">▼</span>
-                </div>
-                <div id="external-nap-section" style="max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease;">
-                    <div id="externalNapList" style="max-height: 200px; overflow-y: auto;">
-                        <div class="empty-state">No external NAPs loaded</div>
-                    </div>
-                </div>
-            </div>
-            <!-- Toggle per escludere NAP esterni -->
-            <div style="margin-top: 12px; border-top: 1px solid #333; padding-top: 12px;">
-                <label class="switch-container">
-                    <span class="switch-label">🚫 Escludi NAP esterni</span>
-                    <div class="switch">
-                        <input type="checkbox" id="checkExcludeExternalNaps" onchange="renderMap()">
-                        <span class="slider"></span>
-                    </div>
-                </label>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Legend -->
+<!-- LEGEND -->
 <div id="legend-container" class="overlay">
     <div id="dynamic-legend" class="panel legend-content hidden"></div>
     <div class="toggle-btn" onclick="toggleLegend()">ℹ️</div>
 </div>
 
-<!-- Stats Bar -->
+<!-- STATS BAR (desktop) -->
 <div id="stats-bar" class="overlay">
     <div class="panel">
         <div class="stats-content">
@@ -390,7 +517,7 @@
     </div>
 </div>
 
-<!-- Mobile Stats Chip -->
+<!-- MOBILE STATS CHIP -->
 <div id="stats-chip" onclick="toggleStatsDetails()">
     <div class="stats-chip-content">
         <div class="stats-chip-item">🤝 <span class="stats-chip-value" id="chip-allies">0</span></div>
@@ -403,28 +530,24 @@
 
 <script>
 // ============================================================
-// GLOBAL STATE
+// GLOBAL STATE (INVARIATO)
 // ============================================================
 let map;
 let nazioniGlobal = [];
 let mapDataGlobal = null;
 let selectedCountryId = null;
 let customNaps = [];
-let nationBaseColorMap = new Map(); // countryId -> colore base (strokeColor)
-let externalBlocsInfo = [];  // array di { name, color, labelLng, labelLat }
-let externalNapsList = [];        // array di oggetti { fromId, toId } (per visualizzazione)
-let externalNapsSet = new Set();  // Set di stringhe "idA-idB" per lookup veloce
-let externalNapsEnabled = true;   // default: NAP esterni attivi
-let showManualNapsList = true;    // default: lista NAP manuali visibile
+let nationBaseColorMap = new Map();
+let externalBlocsInfo = [];
+let externalNapsList = [];
+let externalNapsSet = new Set();
 const nationMap = new Map();
-const multiBlocMap = new Map(); // countryId -> { colors: [], patternKey: string }
+const multiBlocMap = new Map();
 
 let baseGeoJSON = null;
 let originalLabelsData = [];
 let labelsData = [];
-// Fonte dei confini: 'actual' o 'original'
 let mapSource = 'actual';
-// Modalità di colorazione: 'diplomacy' o 'blocs'
 let coloringMode = 'diplomacy';
 
 const COLORS = {
@@ -438,83 +561,35 @@ const COLORS = {
     DEFAULT_LAND:     "#4a4e5a",
     NEUTRAL_UNSELECTED:"#3a3d46",
     OCEAN:            "#000000",
-    // Colori per i blocchi
-    ITALIAN_BLOC:     "#1b557a",   // blu
-    WESTERN_BLOC:     "#55a5d9",   // blu simile a Olive Union
-    AFRICAN_UNION:    "#e67e22",   // arancione
-    ASIAN_FEDERATION: "#8e44ad",   // viola
-    ICDP:             "#c0392b",    // rosso
-    HOLY_LEAGUE:      "#FFD700"    // Oro
-
+    ITALIAN_BLOC:     "#1b557a",
+    WESTERN_BLOC:     "#55a5d9",
+    AFRICAN_UNION:    "#e67e22",
+    ASIAN_FEDERATION: "#8e44ad",
+    ICDP:             "#c0392b",
+    HOLY_LEAGUE:      "#FFD700"
 };
 
-// Source/layer IDs
 const SRC_REGIONS = 'regions-src';
 const SRC_BORDERS = 'borders-src';
 const SRC_LABELS  = 'labels-src';
-
 const LYR_FILL    = 'regions-fill';
 const LYR_OUTLINE = 'regions-outline';
 const LYR_COAST   = 'regions-coast';
 const LYR_BORDER  = 'borders-line';
 const LYR_MULTI_BLOC = 'multi-bloc-pattern';
-// URL del file CSV esterno per i blocchi di alleanze
+
 const EXTERNAL_BLOCS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
-// URL del file CSV esterno per i NAP
 const EXTERNAL_NAPS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/warera_naps.csv';
-// ============================================================
-// BLOC DEFINITIONS
-// ============================================================
-const blocColorMap = new Map(); // countryId -> color
 
+const blocColorMap = new Map();
 
-// Helper per parsare CSV
-// Parser CSV che gestisce le virgolette (campi con virgole interne)
+// ============================================================
+// FUNZIONI DI UTILITÀ (INVARIATE)
+// ============================================================
 function parseCSV(csvText) {
     const rows = [];
     const lines = csvText.trim().split(/\r?\n/);
     if (lines.length < 2) return rows;
-    
-    // Funzione per parsare una riga CSV rispettando le virgolette
-    function parseLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                // Se troviamo una virgoletta, invertiamo lo stato (dentro/fuori)
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                // Separatore di colonna fuori dalle virgolette
-                result.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim()); // ultimo campo
-        return result;
-    }
-    
-    const headers = parseLine(lines[0]);
-    for (let i = 1; i < lines.length; i++) {
-        const values = parseLine(lines[i]);
-        if (values.length === headers.length) {
-            const row = {};
-            headers.forEach((header, idx) => { row[header] = values[idx]; });
-            rows.push(row);
-        }
-    }
-    return rows;
-}
-
-// Parser per il CSV dei NAP (colonne: nazione_A, nap_con)
-function parseNapsCSV(csvText) {
-    const rows = [];
-    const lines = csvText.trim().split(/\r?\n/);
-    if (lines.length < 2) return rows;
-    
     function parseLine(line) {
         const result = [];
         let current = '';
@@ -533,7 +608,6 @@ function parseNapsCSV(csvText) {
         result.push(current.trim());
         return result;
     }
-    
     const headers = parseLine(lines[0]);
     for (let i = 1; i < lines.length; i++) {
         const values = parseLine(lines[i]);
@@ -545,27 +619,56 @@ function parseNapsCSV(csvText) {
     }
     return rows;
 }
+
+function parseNapsCSV(csvText) {
+    const rows = [];
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return rows;
+    function parseLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    }
+    const headers = parseLine(lines[0]);
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseLine(lines[i]);
+        if (values.length === headers.length) {
+            const row = {};
+            headers.forEach((header, idx) => { row[header] = values[idx]; });
+            rows.push(row);
+        }
+    }
+    return rows;
+}
+
 async function loadExternalNaps() {
     try {
         const cacheBuster = `?t=${Date.now()}`;
         const response = await fetch(EXTERNAL_NAPS_URL + cacheBuster);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const csvText = await response.text();
         const napsData = parseNapsCSV(csvText);
-        
-        // Pulisci strutture esistenti
         externalNapsList = [];
         externalNapsSet.clear();
-        
         for (const row of napsData) {
             const nationACode = row.nazione_A?.trim().toUpperCase();
             const napConStr = row.nap_con?.trim();
             if (!nationACode || !napConStr) continue;
-            
             const countryA = nazioniGlobal.find(n => n.code?.toUpperCase() === nationACode);
             if (!countryA) continue;
-            
             const targets = napConStr.split(',').map(c => c.trim().toUpperCase());
             for (const targetCode of targets) {
                 const countryB = nazioniGlobal.find(n => n.code?.toUpperCase() === targetCode);
@@ -581,55 +684,35 @@ async function loadExternalNaps() {
                 }
             }
         }
-        
-        console.log(`[External] Caricati ${externalNapsList.length} NAP unici (reciproci)`);
-        
-        // Se ci sono NAP esterni, aggiorna la lista nell'interfaccia
-        if (externalNapsList.length > 0) {
-            updateExternalNapsUI();
-        }
-        
-        // Forza un refresh della mappa per applicare i nuovi NAP (se la modalità corrente li usa)
+        updateExternalNapsUI();
         renderMap();
-        
-        showToast(`${externalNapsList.length} NAP esterni caricati`, 'success');
+        showToast(`${externalNapsList.length} external NAPs loaded`, 'success');
     } catch (error) {
-        console.error('Errore nel caricamento NAP esterni:', error);
-        showToast('NAP esterni non disponibili.', 'warning');
+        console.error('Errore NAP esterni:', error);
+        showToast('External NAPs unavailable.', 'warning');
     }
 }
-// Carica i blocchi esterni e ricostruisce le mappe
+
 async function loadExternalBlocs() {
     try {
         showLoading();
-        // Aggiunge un parametro 't' con timestamp per il cache busting
         const cacheBuster = `?t=${new Date().getTime()}`;
         const response = await fetch(EXTERNAL_BLOCS_URL + cacheBuster);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const csvText = await response.text();
         const blocsData = parseCSV(csvText);
-        console.log(`[External] Caricati ${blocsData.length} blocchi`);
-        
         buildBlocMapFromData(blocsData);
-        
         updateDynamicLegend();
         if (coloringMode === 'blocs') renderMap();
-
-        showToast('Blocchi di alleanze caricati con successo!', 'success');
+        showToast('Alliance blocs loaded successfully!', 'success');
     } catch (error) {
-        console.error('Errore nel caricamento blocchi esterni:', error);
-        showToast('Blocchi esterni non disponibili. Uso configurazione interna.', 'warning');
+        console.error('Errore blocchi esterni:', error);
+        showToast('External blocs unavailable.', 'warning');
     } finally {
         hideLoading();
     }
 }
 
-// ============================================================
-// 5c – Costruzione mappa blocchi con fallback opzionale
-// ============================================================
-
-// Dati hardcoded di fallback (gli stessi blocchi originali)
 function getHardcodedBlocsData() {
     return [
         { nome_blocco: "Olive Union", codici_nazioni: "IT,HR,HU,GR,TR,IQ,EG,LT", colore: COLORS.ITALIAN_BLOC, label_lng: "30", label_lat: "40" },
@@ -641,40 +724,29 @@ function getHardcodedBlocsData() {
     ];
 }
 
-// Costruisce la mappa dei blocchi a partire dai dati (esterni o fallback)
 function buildBlocMapFromData(blocsData) {
     blocColorMap.clear();
     multiBlocMap.clear();
     externalBlocsInfo = [];
-
-    // Se non ci sono dati, usa il fallback hardcoded
-    if (!blocsData || blocsData.length === 0) {
-        console.warn('[Fallback] Nessun dato esterno, uso configurazione hardcoded');
-        blocsData = getHardcodedBlocsData();
-    }
-
+    if (!blocsData || blocsData.length === 0) blocsData = getHardcodedBlocsData();
     for (const bloc of blocsData) {
         const blocName = bloc.nome_blocco;
         const blocColor = bloc.colore;
         const labelLng = parseFloat(bloc.label_lng);
         const labelLat = parseFloat(bloc.label_lat);
         if (!blocColor) continue;
-
-        // Memorizza info per legenda e etichette
         externalBlocsInfo.push({
             name: blocName,
             color: blocColor,
             labelLng: isNaN(labelLng) ? null : labelLng,
             labelLat: isNaN(labelLat) ? null : labelLat
         });
-
         const countryCodes = bloc.codici_nazioni.split(',').map(c => c.trim().toUpperCase());
         for (const code of countryCodes) {
             const country = nazioniGlobal.find(n => n.code?.toUpperCase() === code);
             if (country) {
                 const countryId = country._id;
                 if (blocColorMap.has(countryId)) {
-                    // Multi-bloc: accumula i colori
                     let existingColors = [blocColorMap.get(countryId)];
                     const existingMulti = multiBlocMap.get(countryId);
                     if (existingMulti) existingColors = existingMulti.colors;
@@ -710,9 +782,7 @@ function createBlendPattern(colors, sz = 2048) {
     const ctx = canvas.getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, sz, sz);
     const step = 1 / (colors.length - 1);
-    colors.forEach((color, idx) => {
-        gradient.addColorStop(idx * step, color);
-    });
+    colors.forEach((color, idx) => { gradient.addColorStop(idx * step, color); });
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, sz, sz);
     ctx.strokeStyle = '#000000';
@@ -748,58 +818,20 @@ function buildMultiBlocPatternExpression() {
 }
 
 // ============================================================
-// PANEL / UI HELPERS
+// TOGGLE NAP SECTION
 // ============================================================
-function togglePanel(panelId) {
-    const content = document.getElementById(panelId);
-    const side = panelId.split('-')[1];
-    const icon = document.getElementById('icon-' + side);
-    if (!content || !icon) return;
-    const isNowCollapsed = !content.classList.contains('collapsed');
-    if (isNowCollapsed) {
-        content.classList.add('collapsed');
-        icon.classList.add('collapsed');
+function toggleNapSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
+    const icon = document.getElementById(iconId);
+    if (!section || !icon) return;
+    if (section.style.maxHeight && section.style.maxHeight !== '0px') {
+        section.style.maxHeight = '0';
+        icon.innerHTML = '▶';
     } else {
-        content.classList.remove('collapsed');
-        icon.classList.remove('collapsed');
+        section.style.maxHeight = '200px';
+        icon.innerHTML = '▼';
     }
-    localStorage.setItem(panelId + '-collapsed', isNowCollapsed);
-}
-
-function initPanelStates() {
-    ['panel-left', 'panel-right'].forEach(id => {
-        const content = document.getElementById(id);
-        const side = id.split('-')[1];
-        const icon = document.getElementById('icon-' + side);
-            // Inizializza le sezioni NAP come aperte
-    const manualSection = document.getElementById('manual-nap-section');
-    const externalSection = document.getElementById('external-nap-section');
-    if (manualSection) manualSection.style.maxHeight = '200px';
-    if (externalSection) externalSection.style.maxHeight = '200px';
-        if (!content || !icon) return;
-        const saved = localStorage.getItem(id + '-collapsed');
-        if (saved === 'true') {
-            content.classList.add('collapsed');
-            icon.classList.add('collapsed');
-        } else {
-            content.classList.remove('collapsed');
-            icon.classList.remove('collapsed');
-        }
-    });
-}
-
-function updateStatsChip() {
-    document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
-    document.getElementById('chip-wars').textContent   = document.getElementById('stats-wars').textContent;
-    document.getElementById('chip-naps').textContent   = document.getElementById('stats-naps').textContent;
-}
-
-function toggleStatsDetails() {
-    const name  = document.getElementById('selected-name-display').textContent || 'No selection';
-    const allies = document.getElementById('stats-allies').textContent;
-    const wars   = document.getElementById('stats-wars').textContent;
-    const naps   = document.getElementById('stats-naps').textContent;
-    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
 }
 
 function showToast(message, type = 'info') {
@@ -808,18 +840,11 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
 function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
-function hideLoading() {
-    const el = document.getElementById('loading-overlay');
-    el.style.opacity = '0';
-    setTimeout(() => el.style.display = 'none', 300);
-}
+function hideLoading() { const el = document.getElementById('loading-overlay'); el.style.opacity = '0'; setTimeout(() => el.style.display = 'none', 300); }
 function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
 
 // ============================================================
@@ -832,9 +857,7 @@ function getIndirectAllies(targetId) {
     target.allies.forEach(allyId => {
         const ally = nationMap.get(allyId);
         if (ally && ally.allies) {
-            ally.allies.forEach(id => {
-                if (id !== targetId && !target.allies.includes(id)) indirect.add(id);
-            });
+            ally.allies.forEach(id => { if (id !== targetId && !target.allies.includes(id)) indirect.add(id); });
         }
     });
     return Array.from(indirect);
@@ -847,9 +870,7 @@ function getEnemyAllies(targetId) {
     target.warsWith.forEach(enemyId => {
         const enemy = nationMap.get(enemyId);
         if (enemy && enemy.allies) {
-            enemy.allies.forEach(id => {
-                if (id !== targetId) enemyAllies.add(id);
-            });
+            enemy.allies.forEach(id => { if (id !== targetId) enemyAllies.add(id); });
         }
     });
     return Array.from(enemyAllies);
@@ -863,11 +884,7 @@ function getColorForCountry(cId, directWars, directAllies, indirectAllies, enemy
         isExternalNap = externalNapsSet.has(`${selectedCountryId}-${cId}`) || externalNapsSet.has(`${cId}-${selectedCountryId}`);
     }
     const isNap = isManualNap || isExternalNap;
-    
-    
-    if (!selectedCountryId) {
-        return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
-    }
+    if (!selectedCountryId) return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
     if (cId === selectedCountryId) return COLORS.SELECTED;
     if (isNap) return COLORS.NAP;
     if (directAllies.includes(cId)) return COLORS.ALLY_DIRECT;
@@ -880,15 +897,7 @@ function getColorForCountry(cId, directWars, directAllies, indirectAllies, enemy
 
 function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
     const expr = ['match', ['get', 'countryId']];
-    const allIds = new Set([
-        ...Object.keys(styleMap),
-        ...directWars,
-        ...directAllies,
-        ...indirectAllies,
-        ...enemyAllies,
-        ...customNaps,
-        ...(selectedCountryId ? [selectedCountryId] : [])
-    ]);
+    const allIds = new Set([...Object.keys(styleMap), ...directWars, ...directAllies, ...indirectAllies, ...enemyAllies, ...customNaps, ...(selectedCountryId ? [selectedCountryId] : [])]);
     allIds.forEach(cId => {
         const color = getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
         expr.push(cId, color);
@@ -899,83 +908,52 @@ function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies,
 
 function buildBlocColorExpression() {
     const expr = ['match', ['get', 'countryId']];
-    for (let [id, color] of blocColorMap.entries()) {
-        if (multiBlocMap.has(id)) continue;
-        expr.push(id, color);
-    }
+    for (let [id, color] of blocColorMap.entries()) { if (!multiBlocMap.has(id)) expr.push(id, color); }
     expr.push(COLORS.DEFAULT_LAND);
     return expr;
 }
 
 function buildOriginalBlocColorExpression() {
     const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
-    for (let [id, color] of blocColorMap.entries()) {
-        if (multiBlocMap.has(id)) continue;
-        expr.push(id, color);
-    }
-    for (let [id, { colors }] of multiBlocMap.entries()) {
-        expr.push(id, colors[0]);
-    }
+    for (let [id, color] of blocColorMap.entries()) { if (!multiBlocMap.has(id)) expr.push(id, color); }
+    for (let [id, { colors }] of multiBlocMap.entries()) expr.push(id, colors[0]);
     expr.push(COLORS.DEFAULT_LAND);
     return expr;
 }
+
 function buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended) {
     const colorMap = new Map();
     const excludeExternalNaps = document.getElementById('checkExcludeExternalNaps')?.checked || false;
-
     nazioniGlobal.forEach(n => {
         const id = n._id;
         let color;
-
-        if (!selectedCountryId) {
-            color = nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
-        } else if (id === selectedCountryId) {
-            color = COLORS.SELECTED;
-        } else if (customNaps.includes(id)) {
-            color = COLORS.NAP;
-        } else if (
-            !excludeExternalNaps &&
-            (externalNapsSet.has(`${selectedCountryId}-${id}`) || externalNapsSet.has(`${id}-${selectedCountryId}`))
-        ) {
-            color = COLORS.NAP;
-        } else if (directAllies.includes(id)) {
-            color = COLORS.ALLY_DIRECT;
-        } else if (directWars.includes(id)) {
-            color = COLORS.WAR_DIRECT;
-        } else if (enemyAllies.includes(id) && indirectAllies.includes(id) && isExtended) {
-            color = COLORS.BORDERLINE;
-        } else if (enemyAllies.includes(id)) {
-            color = COLORS.WAR_INDIRECT;
-        } else if (indirectAllies.includes(id) && isExtended) {
-            color = COLORS.ALLY_INDIRECT;
-        } else {
-            color = COLORS.DEFAULT_LAND;
-        }
+        if (!selectedCountryId) color = nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
+        else if (id === selectedCountryId) color = COLORS.SELECTED;
+        else if (customNaps.includes(id)) color = COLORS.NAP;
+        else if (!excludeExternalNaps && (externalNapsSet.has(`${selectedCountryId}-${id}`) || externalNapsSet.has(`${id}-${selectedCountryId}`))) color = COLORS.NAP;
+        else if (directAllies.includes(id)) color = COLORS.ALLY_DIRECT;
+        else if (directWars.includes(id)) color = COLORS.WAR_DIRECT;
+        else if (enemyAllies.includes(id) && indirectAllies.includes(id) && isExtended) color = COLORS.BORDERLINE;
+        else if (enemyAllies.includes(id)) color = COLORS.WAR_INDIRECT;
+        else if (indirectAllies.includes(id) && isExtended) color = COLORS.ALLY_INDIRECT;
+        else color = COLORS.DEFAULT_LAND;
         colorMap.set(id, color);
     });
-
     const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
-    for (let [id, color] of colorMap.entries()) {
-        expr.push(id.toString(), color);
-    }
+    for (let [id, color] of colorMap.entries()) expr.push(id.toString(), color);
     expr.push(COLORS.NEUTRAL_UNSELECTED);
     return expr;
 }
+
 function flattenCoords(geometry) {
     const result = [];
-    function extract(c) {
-        if (!c) return;
-        if (typeof c[0] === 'number') result.push(c);
-        else c.forEach(extract);
-    }
+    function extract(c) { if (!c) return; if (typeof c[0] === 'number') result.push(c); else c.forEach(extract); }
     extract(geometry.coordinates);
     return result;
 }
 
 function buildOriginalLabels() {
     if (!baseGeoJSON || !labelsData.length) return;
-
-    // Indice delle regioni con bounding box e geometria
     const regionIndex = [];
     baseGeoJSON.features.forEach(f => {
         const initId = f.properties?.initialCountryId;
@@ -983,76 +961,45 @@ function buildOriginalLabels() {
         const coords = flattenCoords(f.geometry);
         if (!coords.length) return;
         let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-        coords.forEach(c => {
-            minLng = Math.min(minLng, c[0]);
-            maxLng = Math.max(maxLng, c[0]);
-            minLat = Math.min(minLat, c[1]);
-            maxLat = Math.max(maxLat, c[1]);
-        });
-        regionIndex.push({
-            initId,
-            minLng, maxLng, minLat, maxLat,
-            geometry: f.geometry,
-            numCoords: coords.length
-        });
+        coords.forEach(c => { minLng = Math.min(minLng, c[0]); maxLng = Math.max(maxLng, c[0]); minLat = Math.min(minLat, c[1]); maxLat = Math.max(maxLat, c[1]); });
+        regionIndex.push({ initId, minLng, maxLng, minLat, maxLat, geometry: f.geometry, numCoords: coords.length });
     });
-    // Funzione point-in-polygon (solo per Polygon/MultiPolygon)
     function pointInPolygon(point, polygon) {
         const x = point[0], y = point[1];
         let inside = false;
         function processRing(ring) {
             for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-                const xi = ring[i][0], yi = ring[i][1];
-                const xj = ring[j][0], yj = ring[j][1];
-                const intersect = ((yi > y) != (yj > y)) &&
-                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+                const intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
                 if (intersect) inside = !inside;
             }
         }
-        if (polygon.type === 'Polygon') {
-            processRing(polygon.coordinates[0]);
-        } else if (polygon.type === 'MultiPolygon') {
-            polygon.coordinates.forEach(poly => processRing(poly[0]));
-        }
+        if (polygon.type === 'Polygon') processRing(polygon.coordinates[0]);
+        else if (polygon.type === 'MultiPolygon') polygon.coordinates.forEach(poly => processRing(poly[0]));
         return inside;
     }
-
-    // Mappa: initialCountryId -> miglior capitale (flagSize maggiore)
     const capitalMap = new Map();
     labelsData.forEach(label => {
         const coords = label.coordinates;
         if (!coords) return;
-        // Trova la regione che contiene il punto
-        let bestRegion = null;
         for (let region of regionIndex) {
-            if (coords[0] >= region.minLng && coords[0] <= region.maxLng &&
-                coords[1] >= region.minLat && coords[1] <= region.maxLat) {
+            if (coords[0] >= region.minLng && coords[0] <= region.maxLng && coords[1] >= region.minLat && coords[1] <= region.maxLat) {
                 if (pointInPolygon(coords, region.geometry)) {
-                    bestRegion = region;
+                    const existing = capitalMap.get(region.initId);
+                    const flagSize = label.properties.flagSize || 0;
+                    if (!existing || flagSize > (existing.flagSize || 0)) {
+                        capitalMap.set(region.initId, { coordinates: coords, flagSize, label });
+                    }
                     break;
                 }
             }
         }
-        if (bestRegion) {
-            const existing = capitalMap.get(bestRegion.initId);
-            const flagSize = label.properties.flagSize || 0;
-            if (!existing || flagSize > (existing.flagSize || 0)) {
-                capitalMap.set(bestRegion.initId, {
-                    coordinates: coords,
-                    flagSize: flagSize,
-                    label: label
-                });
-            }
-        }
     });
-
-    // Fallback per nazioni senza capitale: usa centro della regione più grande
-    const centroidMap = new Map(); // initId -> { center, numCoords }
+    const centroidMap = new Map();
     regionIndex.forEach(region => {
         if (capitalMap.has(region.initId)) return;
         const best = centroidMap.get(region.initId);
         if (!best || region.numCoords > best.numCoords) {
-            // Calcola centro geometrico approssimato (media coordinate)
             const coords = flattenCoords(region.geometry);
             let sumLng = 0, sumLat = 0;
             coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
@@ -1060,8 +1007,6 @@ function buildOriginalLabels() {
             centroidMap.set(region.initId, { center, numCoords: region.numCoords });
         }
     });
-
-    // Costruisci originalLabelsData
     originalLabelsData = [];
     capitalMap.forEach((data, initId) => {
         const nation = nationMap.get(initId);
@@ -1096,60 +1041,36 @@ function buildOriginalLabels() {
         });
     });
 }
+
 function hashColor(str) {
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
     const hue = Math.abs(h) % 360;
     return `hsl(${hue}, 45%, 32%)`;
 }
+
 // ============================================================
 // LEGEND & STATS
 // ============================================================
-// ============================================================
-// LEGEND & STATS (versione dinamica per i blocchi)
-// ============================================================
 function updateDynamicLegend() {
     const box = document.getElementById('dynamic-legend');
-    
     if (coloringMode === 'blocs') {
-        if (externalBlocsInfo && externalBlocsInfo.length > 0) {
-            let legendHtml = '';
-            for (const bloc of externalBlocsInfo) {
-                legendHtml += `<div class="legend-item"><div class="dot" style="background:${bloc.color}"></div><span>${bloc.name}</span></div>`;
-            }
-            const multiEntries = [...multiBlocMap.values()];
-            if (multiEntries.length > 0) {
-                legendHtml += `<div class="legend-item"><div class="dot" style="background:linear-gradient(135deg,${multiEntries[0].colors[0]} 50%,${multiEntries[0].colors[1]} 50%)"></div><span>Multi-bloc</span></div>`;
-            }
-            legendHtml += `<div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
-            box.innerHTML = legendHtml;
-        } else {
-            box.innerHTML = `<div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Olive union allies</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.HOLY_LEAGUE}"></div><span>Holy League</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
-        }
+        let html = '';
+        externalBlocsInfo.forEach(b => html += `<div class="legend-item"><div class="dot" style="background:${b.color}"></div><span>${b.name}</span></div>`);
+        const multi = [...multiBlocMap.values()];
+        if (multi.length) html += `<div class="legend-item"><div class="dot" style="background:linear-gradient(135deg,${multi[0].colors[0]} 50%,${multi[0].colors[1]} 50%)"></div><span>Multi-bloc</span></div>`;
+        html += `<div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
+        box.innerHTML = html;
         return;
     }
-    
-    // Modalità diplomacy
     if (mapSource === 'original' && !selectedCountryId) {
-        box.innerHTML = `
-            <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
-            <div style="font-size:10px;color:#666;margin-top:8px;">Original owners</div>`;
+        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div><div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div><div style="font-size:10px;color:#666;margin-top:8px;">Original owners</div>`;
         return;
     }
-    
     if (!selectedCountryId) {
-        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>`;
+        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div><div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>`;
         return;
     }
-    
     box.innerHTML = `
         <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
         <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
@@ -1159,24 +1080,25 @@ function updateDynamicLegend() {
         <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
         <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
     `;
-    if (mapSource === 'original') {
-        box.innerHTML += `<div style="font-size:10px;color:#666;margin-top:8px;">Original territory borders</div>`;
-    }
+    if (mapSource === 'original') box.innerHTML += `<div style="font-size:10px;color:#666;margin-top:8px;">Original territory borders</div>`;
 }
+
 function updateStats() {
     if (!selectedCountryId) {
         document.getElementById('stats-allies').textContent = '0';
-        document.getElementById('stats-wars').textContent  = '0';
-        document.getElementById('stats-naps').textContent  = customNaps.length;
+        document.getElementById('stats-wars').textContent = '0';
+        document.getElementById('stats-naps').textContent = customNaps.length;
     } else {
         const target = nationMap.get(selectedCountryId);
         if (target) {
             document.getElementById('stats-allies').textContent = (target.allies || []).length;
-            document.getElementById('stats-wars').textContent   = (target.warsWith || []).length;
-            document.getElementById('stats-naps').textContent   = customNaps.length;
+            document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
+            document.getElementById('stats-naps').textContent = customNaps.length;
         }
     }
-    updateStatsChip();
+    document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
+    document.getElementById('chip-wars').textContent = document.getElementById('stats-wars').textContent;
+    document.getElementById('chip-naps').textContent = document.getElementById('stats-naps').textContent;
 }
 
 function updateSelectedDisplay() {
@@ -1188,7 +1110,7 @@ function updateSelectedDisplay() {
     if (!nation) { display.style.display = 'none'; return; }
     nameDisplay.textContent = nation.name;
     let code = '';
-    if (mapSource  === 'original') {
+    if (mapSource === 'original') {
         const origLabel = originalLabelsData.find(l => l.properties.countryId === selectedCountryId);
         code = origLabel?.properties?.countryCode || nation.code?.toLowerCase() || '';
     } else {
@@ -1208,32 +1130,66 @@ function updateSelectedDisplay() {
     display.style.display = 'block';
 }
 
-function updateMapAndRender() {
-    mapSource = document.getElementById('map-source-selector').value;
-    coloringMode = document.getElementById('coloring-mode-selector').value;
-    // Tracciamento Umami (sostituisce il vecchio setMode)
-    if (window.umami) {
-        umami.track('mode-change', { 
-            map_source: mapSource, 
-            coloring_mode: coloringMode 
-        });
+// ============================================================
+// NUOVE FUNZIONI PER I CONTROLLI MODIFICATI
+// ============================================================
+function setMapSource(isOriginal) {
+    mapSource = isOriginal ? 'original' : 'actual';
+    
+    // Aggiorna evidenziazione etichette
+    const labelActual = document.getElementById('label-actual');
+    const labelOriginal = document.getElementById('label-original');
+    if (labelActual && labelOriginal) {
+        if (isOriginal) {
+            labelActual.classList.remove('active');
+            labelOriginal.classList.add('active');
+        } else {
+            labelActual.classList.add('active');
+            labelOriginal.classList.remove('active');
+        }
     }
+    
     renderMap();
 }
-function shouldShowBlocLabels() {
-    return coloringMode === 'blocs';
+
+function setColoringMode(mode) {
+    coloringMode = mode;
+    // Aggiorna classi attive sui bottoni
+    document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
+    document.getElementById('mode-blocs').classList.toggle('active', mode === 'blocs');
+    renderMap();
 }
+
+// Sincronizza lo stato iniziale del toggle borders
+function syncUIToState() {
+    const isOriginal = (mapSource === 'original');
+    document.getElementById('toggle-borders').checked = isOriginal;
+    
+    // Sincronizza evidenziazione etichette
+    const labelActual = document.getElementById('label-actual');
+    const labelOriginal = document.getElementById('label-original');
+    if (labelActual && labelOriginal) {
+        if (isOriginal) {
+            labelActual.classList.remove('active');
+            labelOriginal.classList.add('active');
+        } else {
+            labelActual.classList.add('active');
+            labelOriginal.classList.remove('active');
+        }
+    }
+    
+    setColoringMode(coloringMode);
+}
+
 // ============================================================
-// CORE MAP RENDER
+// RENDER MAPPA
 // ============================================================
 function renderMap() {
     if (!map || !mapDataGlobal) return;
-
     updateDynamicLegend();
     updateStats();
     updateSelectedDisplay();
 
-    // Gestione confini (border lines)
     const borderLayer = map.getLayer(LYR_BORDER);
     const originalBorderLayer = map.getLayer('original-borders-line');
     if (mapSource === 'original') {
@@ -1244,7 +1200,6 @@ function renderMap() {
         if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'none');
     }
 
-    // Gestione layer multi-bloc
     if (map.getLayer(LYR_MULTI_BLOC)) {
         if (coloringMode === 'blocs') {
             const multiIds = [...multiBlocMap.keys()];
@@ -1258,7 +1213,6 @@ function renderMap() {
         }
     }
 
-    // Calcolo relazioni diplomatiche (per modalità diplomacy)
     const isExtended = document.getElementById('checkExtended').checked;
     let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
     if (coloringMode === 'diplomacy' && selectedCountryId) {
@@ -1273,20 +1227,11 @@ function renderMap() {
 
     let fillExpr;
     if (coloringMode === 'blocs') {
-        // Colorazione a blocchi (usa la fonte dei confini)
-        if (mapSource === 'actual') {
-            fillExpr = buildBlocColorExpression();
-        } else {
-            fillExpr = buildOriginalBlocColorExpression();
-        }
+        fillExpr = mapSource === 'actual' ? buildBlocColorExpression() : buildOriginalBlocColorExpression();
     } else {
-        // Colorazione diplomatica (usa la fonte dei confini)
         if (mapSource === 'actual') {
             const styleMap = {};
-            labelsData.forEach(l => {
-                if (l.properties?.countryId && l.properties?.strokeColor)
-                    styleMap[l.properties.countryId] = l.properties.strokeColor;
-            });
+            labelsData.forEach(l => { if (l.properties?.countryId) styleMap[l.properties.countryId] = l.properties.strokeColor; });
             fillExpr = buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
         } else {
             fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
@@ -1301,11 +1246,13 @@ function renderMap() {
     toggleLabels();
     if (labelCanvas) map.triggerRepaint();
 }
+
 // ============================================================
-// CANVAS LABEL OVERLAY
+// CANVAS LABELS (INVARIATO)
 // ============================================================
 let labelCanvas = null;
 let labelCtx = null;
+const flagImageCache = new Map();
 
 function initLabelCanvas() {
     labelCanvas = document.createElement('canvas');
@@ -1316,87 +1263,42 @@ function initLabelCanvas() {
     map.on('render', drawLabels);
     window.addEventListener('resize', resizeLabelCanvas);
 }
-function toggleNapSection(sectionId) {
-    const section = document.getElementById(sectionId);
-    const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
-    const icon = document.getElementById(iconId);
-    if (!section || !icon) return;
-    
-    if (section.style.maxHeight && section.style.maxHeight !== '0px') {
-        section.style.maxHeight = '0';
-        icon.innerHTML = '▶';
-        icon.style.transform = 'rotate(0deg)';
-    } else {
-        section.style.maxHeight = '200px';
-        icon.innerHTML = '▼';
-        icon.style.transform = 'rotate(0deg)';
-    }
-}
+
 function resizeLabelCanvas() {
     if (!labelCanvas) return;
     const container = map.getContainer();
     const r = window.devicePixelRatio || 1;
-    labelCanvas.width  = container.clientWidth  * r;
+    labelCanvas.width = container.clientWidth * r;
     labelCanvas.height = container.clientHeight * r;
-    labelCanvas.style.width  = container.clientWidth  + 'px';
+    labelCanvas.style.width = container.clientWidth + 'px';
     labelCanvas.style.height = container.clientHeight + 'px';
     labelCtx.scale(r, r);
 }
 
-function toggleLabels() {
-    if (labelCanvas) map.triggerRepaint();
-}
+function toggleLabels() { if (labelCanvas) map.triggerRepaint(); }
 
-function drawBlocLabels(ctx, W, H, force = false) {
-    if (!force && coloringMode !== 'blocs') return;
-    if (!externalBlocsInfo || externalBlocsInfo.length === 0) return;
-    
-    const zoom = map.getZoom();
-    const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
-    ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-    
-    for (const bloc of externalBlocsInfo) {
-        if (bloc.labelLng === null || bloc.labelLat === null) continue;
-        const pt = map.project([bloc.labelLng, bloc.labelLat]);
-        const sx = pt.x, sy = pt.y;
-        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) continue;
-        
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 8;
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 4;
-        ctx.strokeText(bloc.name, sx, sy);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = bloc.color;
-        ctx.fillText(bloc.name, sx, sy);
-    }
-}
+function shouldShowBlocLabels() { return coloringMode === 'blocs'; }
+
 function drawAndCollectBlocLabels(ctx, W, H) {
     const blocBBoxes = [];
-    if (!externalBlocsInfo || externalBlocsInfo.length === 0) return blocBBoxes;
-    
+    if (!externalBlocsInfo.length) return blocBBoxes;
     const zoom = map.getZoom();
     const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
     ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
     const BLOC_MARGIN = 30;
-    
     for (const bloc of externalBlocsInfo) {
         if (bloc.labelLng === null || bloc.labelLat === null) continue;
         const pt = map.project([bloc.labelLng, bloc.labelLat]);
         if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
             const metrics = ctx.measureText(bloc.name);
-            const textWidth = metrics.width;
-            const textHeight = fontSize;
             blocBBoxes.push({
-                xMin: pt.x - textWidth / 2 - BLOC_MARGIN,
-                xMax: pt.x + textWidth / 2 + BLOC_MARGIN,
-                yMin: pt.y - textHeight / 2 - BLOC_MARGIN,
-                yMax: pt.y + textHeight / 2 + BLOC_MARGIN
+                xMin: pt.x - metrics.width/2 - BLOC_MARGIN,
+                xMax: pt.x + metrics.width/2 + BLOC_MARGIN,
+                yMin: pt.y - fontSize/2 - BLOC_MARGIN,
+                yMax: pt.y + fontSize/2 + BLOC_MARGIN
             });
-            ctx.shadowColor = '#000';
-            ctx.shadowBlur = 8;
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 4;
+            ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
             ctx.strokeText(bloc.name, pt.x, pt.y);
             ctx.shadowBlur = 0;
             ctx.fillStyle = bloc.color;
@@ -1407,12 +1309,8 @@ function drawAndCollectBlocLabels(ctx, W, H) {
 }
 
 function drawLabels() {
-    const BLOC_MARGIN = 30;
-    const NATION_MARGIN = 1;
-
     if (!labelCanvas || !labelCtx || !labelsData.length) return;
     const showNations = document.getElementById('checkLabels').checked;
-
     const W = labelCanvas.width / (window.devicePixelRatio || 1);
     const H = labelCanvas.height / (window.devicePixelRatio || 1);
     const ctx = labelCtx;
@@ -1420,42 +1318,27 @@ function drawLabels() {
     ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    let drawnNationBoxes = [];
     let blocBBoxes = [];
-
-    // Disegna i nomi dei blocchi e raccogli le bounding box se necessario
-    if (shouldShowBlocLabels()) {
-        blocBBoxes = drawAndCollectBlocLabels(ctx, W, H);
-    }
-
-    // Se le etichette nazioni sono disattivate, esci
-    if (!showNations) {
-        ctx.restore();
-        return;
-    }
+    if (shouldShowBlocLabels()) blocBBoxes = drawAndCollectBlocLabels(ctx, W, H);
+    if (!showNations) { ctx.restore(); return; }
 
     const zoom = map.getZoom();
-    // Usa mapSource per decidere quale set di etichette utilizzare
     const sourceLabels = mapSource === 'original' ? originalLabelsData : labelsData;
     const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
+    const drawnNationBoxes = [];
 
-    function intersects(box1, box2) {
-        return !(box2.xMin > box1.xMax || box2.xMax < box1.xMin ||
-                 box2.yMin > box1.yMax || box2.yMax < box1.yMin);
+    function intersects(b1, b2) {
+        return !(b2.xMin > b1.xMax || b2.xMax < b1.xMin || b2.yMin > b1.yMax || b2.yMax < b1.yMin);
     }
 
     sorted.forEach(label => {
         const props = label.properties;
-        const flagSize = props.flagSize || 0.2;
         const coords = label.coordinates;
         if (!coords) return;
-
-        if (zoom < 2.5 && flagSize < 0.15) return;
-        if (zoom < 3.5 && flagSize < 0.08) return;
-
+        if (zoom < 2.5 && props.flagSize < 0.15) return;
+        if (zoom < 3.5 && props.flagSize < 0.08) return;
         const pt = map.project([coords[0], coords[1]]);
-        const sx = pt.x, sy = pt.y;
-        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
+        if (pt.x < -100 || pt.x > W + 100 || pt.y < -60 || pt.y > H + 60) return;
 
         const nameStr = props.countryName?.toUpperCase() || '';
         const baseSize = props.textSize || 10;
@@ -1468,31 +1351,14 @@ function drawLabels() {
         const fontSize = Math.round(baseSize * scale);
         ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
         const textWidth = ctx.measureText(nameStr).width;
-        const textHeight = fontSize;
-
         const nationBox = {
-            xMin: sx - textWidth / 2 - NATION_MARGIN,
-            xMax: sx + textWidth / 2 + NATION_MARGIN,
-            yMin: sy - textHeight / 2 - NATION_MARGIN,
-            yMax: sy + textHeight / 2 + NATION_MARGIN
+            xMin: pt.x - textWidth/2 - 1,
+            xMax: pt.x + textWidth/2 + 1,
+            yMin: pt.y - fontSize/2 - 1,
+            yMax: pt.y + fontSize/2 + 1
         };
-
-        // Controllo collisione con blocchi
-        if (shouldShowBlocLabels()) {
-            let collideBloc = false;
-            for (let box of blocBBoxes) {
-                if (intersects(nationBox, box)) { collideBloc = true; break; }
-            }
-            if (collideBloc) return;
-        }
-
-        // Controllo collisione con altri nomi di nazioni già disegnati
-        let collideNation = false;
-        for (let existingBox of drawnNationBoxes) {
-            if (intersects(nationBox, existingBox)) { collideNation = true; break; }
-        }
-        if (collideNation) return;
-
+        if (shouldShowBlocLabels() && blocBBoxes.some(b => intersects(nationBox, b))) return;
+        if (drawnNationBoxes.some(b => intersects(nationBox, b))) return;
         drawnNationBoxes.push(nationBox);
 
         const code = (props.countryCode || '').toLowerCase();
@@ -1500,45 +1366,27 @@ function drawLabels() {
         const flagH = Math.round(11 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
         const cachedFlag = flagImageCache.get(code);
         const totalH = (cachedFlag ? flagH + 2 : 0) + fontSize;
-        const startY = sy - totalH / 2;
+        const startY = pt.y - totalH/2;
+        if (cachedFlag) ctx.drawImage(cachedFlag, pt.x - flagW/2, startY, flagW, flagH);
 
-        if (cachedFlag) {
-            ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
-        }
-
-        // Colore del testo in base alla modalità di colorazione
         let textColor;
         const cId = props.countryId;
-        if (coloringMode === 'blocs') {
-            textColor = blocColorMap.get(cId) || '#cccccc';
-            if (selectedCountryId === cId) textColor = '#ffffff';
-        } else if (mapSource === 'original') {
-            textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
-            if (selectedCountryId === cId) textColor = '#ffffff';
-        } else {
-            textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
-        }
+        if (coloringMode === 'blocs') textColor = blocColorMap.get(cId) || '#cccccc';
+        else if (mapSource === 'original') textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
+        else textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
 
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.letterSpacing = '0.3px';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         const textY = startY + (cachedFlag ? flagH + 2 : 0);
-        const upperName = nameStr;
-
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 4;
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.strokeText(upperName, sx, textY);
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+        ctx.strokeText(nameStr, pt.x, textY);
         ctx.shadowBlur = 0;
         ctx.fillStyle = textColor;
-        ctx.fillText(upperName, sx, textY);
+        ctx.fillText(nameStr, pt.x, textY);
     });
-
     ctx.restore();
 }
-const flagImageCache = new Map();
+
 function loadFlagImage(code) {
     if (!code || flagImageCache.has(code)) return;
     flagImageCache.set(code, null);
@@ -1548,26 +1396,24 @@ function loadFlagImage(code) {
     img.onerror = () => flagImageCache.set(code, null);
     img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
 }
+
 function preloadAllFlags() {
     labelsData.forEach(l => { const c = l.properties?.countryCode?.toLowerCase(); if(c) loadFlagImage(c); });
 }
 
 // ============================================================
-// SETUP MAP SOURCES & LAYERS
+// SETUP MAPPA
 // ============================================================
 function setupMapLayers() {
     const topoData = mapDataGlobal.map;
     baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
     labelsData = mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
 
-    if (!map.getSource(SRC_REGIONS)) {
-        map.addSource(SRC_REGIONS, { type: 'geojson', data: baseGeoJSON });
-    } else {
-        map.getSource(SRC_REGIONS).setData(baseGeoJSON);
-    }
+    if (!map.getSource(SRC_REGIONS)) map.addSource(SRC_REGIONS, { type: 'geojson', data: baseGeoJSON });
+    else map.getSource(SRC_REGIONS).setData(baseGeoJSON);
 
     const bordersMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
-    const coastMesh   = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
+    const coastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
     const regionsMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId === b.properties.countryId);
 
     if (!map.getSource(SRC_BORDERS)) {
@@ -1588,11 +1434,8 @@ function setupMapLayers() {
         type: 'FeatureCollection',
         features: labelsData.map(l => ({ type: 'Feature', geometry: { type: 'Point', coordinates: l.coordinates }, properties: l.properties }))
     };
-    if (!map.getSource(SRC_LABELS)) {
-        map.addSource(SRC_LABELS, { type: 'geojson', data: labelsGeoJSON });
-    } else {
-        map.getSource(SRC_LABELS).setData(labelsGeoJSON);
-    }
+    if (!map.getSource(SRC_LABELS)) map.addSource(SRC_LABELS, { type: 'geojson', data: labelsGeoJSON });
+    else map.getSource(SRC_LABELS).setData(labelsGeoJSON);
 
     if (!map.getLayer(LYR_FILL)) {
         map.addLayer({
@@ -1603,13 +1446,9 @@ function setupMapLayers() {
         });
     }
 
-    // Calcola i confini originali (basati su initialCountryId) - dopo il fill layer
     const originalBordersMesh = getOriginalBordersMesh(topoData);
     if (!map.getSource('original-borders-src')) {
-        map.addSource('original-borders-src', {
-            type: 'geojson',
-            data: originalBordersMesh
-        });
+        map.addSource('original-borders-src', { type: 'geojson', data: originalBordersMesh });
         map.addLayer({
             id: 'original-borders-line',
             type: 'line',
@@ -1626,15 +1465,11 @@ function setupMapLayers() {
             id: LYR_MULTI_BLOC,
             type: 'fill',
             source: SRC_REGIONS,
-            filter: multiIds.length > 0
-                ? ['in', ['get', 'countryId'], ['literal', multiIds]]
-                : ['==', ['get', 'countryId'], '___none___'],
+            filter: multiIds.length ? ['in', ['get', 'countryId'], ['literal', multiIds]] : ['==', ['get', 'countryId'], '___none___'],
             layout: { visibility: 'none' },
             paint: { 'fill-opacity': 0.92 }
         });
-        if (multiIds.length > 0) {
-            map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
-        }
+        if (multiIds.length) map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
     }
 
     if (!map.getLayer(LYR_COAST)) {
@@ -1664,9 +1499,7 @@ function setupMapLayers() {
             paint: { 'line-color': '#000000', 'line-width': 0.8, 'line-opacity': 0.7 }
         });
     }
-    if (map.getLayer(LYR_OUTLINE) && map.getLayer(LYR_BORDER)) {
-        map.moveLayer(LYR_OUTLINE, LYR_BORDER);
-    }
+    if (map.getLayer(LYR_OUTLINE) && map.getLayer(LYR_BORDER)) map.moveLayer(LYR_OUTLINE, LYR_BORDER);
 
     initLabelCanvas();
     preloadAllFlags();
@@ -1678,50 +1511,34 @@ function setupMapLayers() {
 
     renderMap();
 }
+
 function onRegionClick(e) {
-    if (!e.features || e.features.length === 0) return;
-    let cId;
-    if (mapSource === 'original') {
-        cId = e.features[0].properties.initialCountryId;
-    } else {
-        cId = e.features[0].properties.countryId;
-    }
+    if (!e.features?.length) return;
+    let cId = mapSource === 'original' ? e.features[0].properties.initialCountryId : e.features[0].properties.countryId;
     selectedCountryId = (selectedCountryId === cId) ? null : cId;
     renderMap();
-   if (window.umami && selectedCountryId) {
-    const nation = nationMap.get(selectedCountryId);
-      if (nation) umami.track('nation-click', { nation: nation.name, map_source: mapSource, coloring_mode: coloringMode });
-        if (nation) showToast(`Selected: ${nation.name}`, 'info');
+    if (window.umami && selectedCountryId) {
+        const nation = nationMap.get(selectedCountryId);
+        if (nation) umami.track('nation-click', { nation: nation.name });
     }
 }
 
 // ============================================================
-// DATA FETCHING & INIT
+// INIZIALIZZAZIONE DATI
 // ============================================================
 async function init() {
     map = new maplibregl.Map({
         container: 'map',
-        style: {
-            version: 8,
-            glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-            sources: {},
-            layers: [{ id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }]
-        },
+        style: { version: 8, glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf', sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }] },
         center: [0, 20],
         zoom: 2,
         minZoom: 1.7,
         maxZoom: 8,
         renderWorldCopies: true,
-        attributionControl: false,
-        logoPosition: 'bottom-right'
+        attributionControl: false
     });
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-
-    map.on('load', async () => {
-        await refreshData();
-        initPanelStates();
-    });
+    // RIMOSSO il controllo zoom +/- (NavigationControl)
+    map.on('load', async () => { await refreshData(); });
 }
 
 async function refreshData() {
@@ -1733,7 +1550,7 @@ async function refreshData() {
         ]);
         if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
         const nationsData = await resN.json();
-        const mapData     = await resM.json();
+        const mapData = await resM.json();
         nazioniGlobal = nationsData.result.data;
         mapDataGlobal = mapData.result.data;
         nationMap.clear();
@@ -1743,37 +1560,18 @@ async function refreshData() {
         popolaListe();
         setupMapLayers();
 
-        // Colori base da labelsData (nazioni con territorio attuale)
         nationBaseColorMap.clear();
-        labelsData.forEach(label => {
-            if (label.properties?.countryId && label.properties?.strokeColor) {
-                nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor);
-            }
-        });
-        // Nazioni conquistate (non presenti in labelsData): colore generato
-        nazioniGlobal.forEach(n => {
-            if (!nationBaseColorMap.has(n._id)) {
-                nationBaseColorMap.set(n._id, n.color || n.mapColor || hashColor(n._id));
-            }
-        });
-        // Costruisci le etichette originali
-         buildOriginalLabels();
-        // Precarica bandiere anche per le nazioni originali
-        originalLabelsData.forEach(label => {
-            const code = label.properties?.countryCode?.toLowerCase();
-            if (code && !flagImageCache.has(code)) {
-                loadFlagImage(code);
-            }
-        });
-                // Forza aggiornamento UI NAP
+        labelsData.forEach(label => { if (label.properties?.countryId) nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor); });
+        nazioniGlobal.forEach(n => { if (!nationBaseColorMap.has(n._id)) nationBaseColorMap.set(n._id, n.color || hashColor(n._id)); });
+        buildOriginalLabels();
+        originalLabelsData.forEach(l => { const c = l.properties?.countryCode?.toLowerCase(); if (c) loadFlagImage(c); });
         updateExternalNapsUI();
-        console.log('[Debug] NAP esterni:', externalNapsList);
-        showToast('Strategic data loaded successfully', 'success');
+        syncUIToState(); // imposta il toggle borders e i bottoni attivi
+        showToast('Strategic data loaded', 'success');
     } catch (e) {
-        console.error('Data Error:', e);
-        showToast('Failed to load game data. Please refresh.', 'error');
-    } 
-    finally {
+        console.error(e);
+        showToast('Failed to load game data', 'error');
+    } finally {
         hideLoading();
     }
 }
@@ -1781,45 +1579,40 @@ async function refreshData() {
 function popolaListe() {
     const datalist = document.getElementById('nazioniList');
     datalist.innerHTML = '';
-    [...nazioniGlobal].sort((a, b) => a.name.localeCompare(b.name)).forEach(n => {
-        const opt = document.createElement('option');
-        opt.value = n.name;
-        datalist.appendChild(opt);
+    [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
+        datalist.appendChild(new Option(n.name));
     });
 }
 
 // ============================================================
-// NAP MANAGEMENT
+// GESTIONE NAP (MANUALI)
 // ============================================================
 function aggiungiNap() {
     const input = document.getElementById('napInput');
     const val = input.value.trim();
-    if (!val) { showToast('Please enter a nation name', 'error'); return; }
+    if (!val) { showToast('Enter a nation name', 'error'); return; }
     const found = nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
     if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
-    if (customNaps.includes(found._id)) { showToast(`${found.name} is already in NAP list`, 'error'); return; }
-    if (selectedCountryId && found._id === selectedCountryId) { showToast(`Cannot add selected nation to NAP list`, 'error'); return; }
+    if (customNaps.includes(found._id)) { showToast(`${found.name} already in NAP`, 'error'); return; }
+    if (selectedCountryId && found._id === selectedCountryId) { showToast('Cannot add selected nation', 'error'); return; }
     customNaps.push(found._id);
     input.value = '';
     aggiornaListaNap();
-    if (window.umami) umami.track('nap-added', { nation: found.name });
     renderMap();
-    showToast(`Added ${found.name} to NAP list`, 'success');
+    showToast(`Added ${found.name} to NAP`, 'success');
 }
 
 function rimuoviNap(id) {
-    const nation = nationMap.get(id);
     customNaps = customNaps.filter(n => n !== id);
     aggiornaListaNap();
     renderMap();
-    if (nation) showToast(`Removed ${nation.name} from NAP list`, 'info');
 }
 
 function aggiornaListaNap() {
-    const container  = document.getElementById('napList');
-    const countBadge = document.getElementById('nap-count');
-    countBadge.textContent = customNaps.length;
-    if (customNaps.length === 0) {
+    const container = document.getElementById('napList');
+    const badge = document.getElementById('nap-count');
+    badge.textContent = customNaps.length;
+    if (!customNaps.length) {
         container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
         return;
     }
@@ -1827,63 +1620,44 @@ function aggiornaListaNap() {
     customNaps.forEach(id => {
         const n = nationMap.get(id);
         if (n) {
-            container.innerHTML += `
-                <div class="nap-item">
-                    <span style="font-weight:600">${n.name}</span>
-                    <span class="remove-nap" onclick="rimuoviNap('${id}')" title="Remove NAP">✕</span>
-                </div>
-            `;
+            container.innerHTML += `<div class="nap-item"><span style="font-weight:600">${n.name}</span><span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
         }
     });
 }
+
 function updateExternalNapsUI() {
     const container = document.getElementById('externalNapList');
-    if (!container) return;
-    
-    if (!externalNapsList || externalNapsList.length === 0) {
+    if (!externalNapsList.length) {
         container.innerHTML = '<div class="empty-state">No external NAPs loaded</div>';
         return;
     }
-    
-    // Raggruppa per nazione A (per visualizzazione più chiara)
     const grouped = new Map();
-    for (const nap of externalNapsList) {
+    externalNapsList.forEach(nap => {
         if (!grouped.has(nap.fromId)) grouped.set(nap.fromId, []);
         grouped.get(nap.fromId).push(nap.toName);
-    }
-    
+    });
     let html = '';
-    for (const [fromId, toNames] of grouped) {
-        const fromNation = nationMap.get(fromId);
-        if (!fromNation) continue;
-        html += `
-            <div class="nap-item" style="border-left-color: #55a5d9; background: rgba(85,165,217,0.1);">
-                <span style="font-weight:600">${fromNation.name}</span>
-                <span style="color:#aaa; font-size:11px;">→ ${toNames.join(', ')}</span>
-            </div>
-        `;
+    for (let [fromId, toNames] of grouped) {
+        const from = nationMap.get(fromId);
+        if (from) html += `<div class="nap-item" style="border-left-color:#55a5d9;"><span>${from.name}</span><span style="color:#aaa;">→ ${toNames.join(', ')}</span></div>`;
     }
     container.innerHTML = html;
 }
+
 // ============================================================
-// SEARCH & RESET
+// RICERCA E RESET
 // ============================================================
 function cercaNazione() {
     const input = document.getElementById('cercaInput');
     const val = input.value.toLowerCase().trim();
-    if (!val) { showToast('Please enter a nation name', 'error'); return; }
-    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) ||
-                  nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
+    if (!val) { showToast('Enter a name', 'error'); return; }
+    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
     if (found) {
         selectedCountryId = found._id;
         input.value = found.name;
-        if (window.umami) umami.track('nation-searched', { nation: found.name });
         renderMap();
-        showToast(`Selected: ${found.name}`, 'success');
-        const labelInfo = labelsData.find(l => l.properties?.countryId === found._id);
-        if (labelInfo && labelInfo.coordinates) {
-            map.flyTo({ center: labelInfo.coordinates, zoom: Math.max(map.getZoom(), 3), duration: 800 });
-        }
+        const label = labelsData.find(l => l.properties?.countryId === found._id);
+        if (label) map.flyTo({ center: label.coordinates, zoom: Math.max(map.getZoom(), 3) });
         if (window.innerWidth <= 768) document.getElementById('dynamic-legend').classList.add('hidden');
     } else {
         showToast(`Nation "${val}" not found`, 'error');
@@ -1896,28 +1670,51 @@ function resetDiplomazia() {
     document.getElementById('cercaInput').value = '';
     document.getElementById('checkExtended').checked = false;
     document.getElementById('napInput').value = '';
-    
-    // Resetta i selettori principali
-    document.getElementById('map-source-selector').value = 'actual';
-    document.getElementById('coloring-mode-selector').value = 'diplomacy';
-    mapSource = 'actual';
-    coloringMode = 'diplomacy';
-    
-    // (Opzionale) Resetta anche il toggle "Escludi NAP esterni"
-    const excludeNapsCheckbox = document.getElementById('checkExcludeExternalNaps');
-    if (excludeNapsCheckbox) excludeNapsCheckbox.checked = false;
-    
+    document.getElementById('checkExcludeExternalNaps').checked = false;
+    setMapSource(false); // actual
+    setColoringMode('diplomacy');
     aggiornaListaNap();
-    if (window.umami) umami.track('diplomacy-reset', { 
-        map_source: mapSource, 
-        coloring_mode: coloringMode 
-    });
     renderMap();
 }
 
+function toggleStatsDetails() {
+    const name = document.getElementById('selected-name-display').textContent || 'No selection';
+    const allies = document.getElementById('stats-allies').textContent;
+    const wars = document.getElementById('stats-wars').textContent;
+    const naps = document.getElementById('stats-naps').textContent;
+    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
+}
+
+// ============================================================
+// GESTIONE HAMBURGER MENU
+// ============================================================
+function toggleHamburgerMenu() {
+    document.getElementById('hamburger-menu').classList.toggle('visible');
+}
+
+document.addEventListener('click', (e) => {
+    const btn = document.getElementById('hamburger-btn');
+    const menu = document.getElementById('hamburger-menu');
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.remove('visible');
+    }
+});
+
+// ============================================================
+// AVVIO
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
-    document.getElementById('napInput').addEventListener('keypress',   e => { if (e.key === 'Enter') aggiungiNap(); });
+    document.getElementById('napInput').addEventListener('keypress', e => { if (e.key === 'Enter') aggiungiNap(); });
+    document.getElementById('hamburger-btn').addEventListener('click', toggleHamburgerMenu);
+    
+    // Listener per il toggle Actual/Original Borders
+    const toggleBorders = document.getElementById('toggle-borders');
+    if (toggleBorders) {
+        toggleBorders.addEventListener('change', function(e) {
+            setMapSource(this.checked);
+        });
+    }
 });
 
 window.onload = init;
