@@ -278,11 +278,15 @@
             <span class="collapse-icon" id="icon-left">▼</span>
         </div>
         <div id="panel-left" class="panel-content">
-            <!-- Selettore modalità -->
-            <select id="mode-selector" onchange="setMode(this.value)">
-                <option value="diplomacy" selected>🗺️ Diplomacy (Current)</option>
+            <!-- Selettore fonte confini -->
+            <select id="map-source-selector" onchange="updateMapAndRender()">
+                <option value="actual" selected>🗺️ Actual Borders</option>
+                <option value="original">🗺️ Original Borders</option>
+            </select>
+            <!-- Selettore modalità colorazione -->
+            <select id="coloring-mode-selector" onchange="updateMapAndRender()" style="margin-top: 8px;">
+                <option value="diplomacy" selected>⚔️ Diplomacy</option>
                 <option value="blocs">🏛️ Alliance Blocs</option>
-                <option value="original">🗺️ Original Borders + Diplomacy</option>
             </select>
             <div id="selected-display" class="selected-info" style="display: none;">
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
@@ -311,13 +315,6 @@
                         <span class="slider"></span>
                     </div>
                 </label>
-                <label class="switch-container" id="bloc-original-switch-container" style="display: none;">
-                    <span class="switch-label">🏛️ Bloc Colors in Original</span>
-                    <div class="switch">
-                        <input type="checkbox" id="checkBlocInOriginal" onchange="renderMap()">
-                        <span class="slider"></span>
-                    </div>
-                </label>
             </div>
         </div>
     </div>
@@ -338,8 +335,39 @@
                 <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
                 <button onclick="aggiungiNap()">ADD</button>
             </div>
-            <div id="napList">
-                <div class="empty-state">No manual NAPs set</div>
+            <!-- Sezione NAP manuali (collassabile) -->
+            <div style="margin-top: 12px;">
+                <div class="section-title" onclick="toggleNapSection('manual-nap-section')" style="cursor: pointer; margin-bottom: 8px;">
+                    <strong style="font-size: 11px; color: #aaa; text-transform: uppercase;">📝 Manual NAPs</strong>
+                    <span id="manual-nap-icon" style="font-size: 12px; color: #00d4ff;">▼</span>
+                </div>
+                <div id="manual-nap-section" style="max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease;">
+                    <div id="napList" style="max-height: 200px; overflow-y: auto;">
+                        <div class="empty-state">No manual NAPs set</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Sezione NAP esterni (collassabile) -->
+            <div style="margin-top: 12px; border-top: 1px solid #333; padding-top: 8px;">
+                <div class="section-title" onclick="toggleNapSection('external-nap-section')" style="cursor: pointer; margin-bottom: 8px;">
+                    <strong style="font-size: 11px; color: #aaa; text-transform: uppercase;">📄 External NAPs (read-only)</strong>
+                    <span id="external-nap-icon" style="font-size: 12px; color: #00d4ff;">▼</span>
+                </div>
+                <div id="external-nap-section" style="max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease;">
+                    <div id="externalNapList" style="max-height: 200px; overflow-y: auto;">
+                        <div class="empty-state">No external NAPs loaded</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Toggle per escludere NAP esterni -->
+            <div style="margin-top: 12px; border-top: 1px solid #333; padding-top: 12px;">
+                <label class="switch-container">
+                    <span class="switch-label">🚫 Escludi NAP esterni</span>
+                    <div class="switch">
+                        <input type="checkbox" id="checkExcludeExternalNaps" onchange="renderMap()">
+                        <span class="slider"></span>
+                    </div>
+                </label>
             </div>
         </div>
     </div>
@@ -383,16 +411,21 @@ let mapDataGlobal = null;
 let selectedCountryId = null;
 let customNaps = [];
 let nationBaseColorMap = new Map(); // countryId -> colore base (strokeColor)
+let externalBlocsInfo = [];  // array di { name, color, labelLng, labelLat }
+let externalNapsList = [];        // array di oggetti { fromId, toId } (per visualizzazione)
+let externalNapsSet = new Set();  // Set di stringhe "idA-idB" per lookup veloce
+let externalNapsEnabled = true;   // default: NAP esterni attivi
+let showManualNapsList = true;    // default: lista NAP manuali visibile
 const nationMap = new Map();
 const multiBlocMap = new Map(); // countryId -> { colors: [], patternKey: string }
 
 let baseGeoJSON = null;
 let originalLabelsData = [];
 let labelsData = [];
-
-// Modalità corrente: 'diplomacy' o 'blocs' o 'original'
-let currentMode = 'diplomacy';
-let useBlocColorsInOriginal = false;
+// Fonte dei confini: 'actual' o 'original'
+let mapSource = 'actual';
+// Modalità di colorazione: 'diplomacy' o 'blocs'
+let coloringMode = 'diplomacy';
 
 const COLORS = {
     SELECTED:         "#ffcc00",
@@ -425,51 +458,235 @@ const LYR_OUTLINE = 'regions-outline';
 const LYR_COAST   = 'regions-coast';
 const LYR_BORDER  = 'borders-line';
 const LYR_MULTI_BLOC = 'multi-bloc-pattern';
-
+// URL del file CSV esterno per i blocchi di alleanze
+const EXTERNAL_BLOCS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
+// URL del file CSV esterno per i NAP
+const EXTERNAL_NAPS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/warera_naps.csv';
 // ============================================================
 // BLOC DEFINITIONS
 // ============================================================
 const blocColorMap = new Map(); // countryId -> color
 
-const italianBlocCodes = new Set(['IT','HR','HU','GR','TR','IQ','EG','LT']);
-const icdpCodes = new Set(['RO','DE','UA','RS']);
-const asianFederationCodes = new Set([
-    'BT', 'BN', 'CN', 'TL', 'EG', 'FJ', 'IN', 'IQ', 'PS', 'PG', 'PH', 'TR', 'KP', 'VN', 'VU'
-]);
-const africanCodes = new Set([
-    'AO','DZ','BJ','BW','BF','BI','CM','CV','CF','KM','CD','DJ','EG','GQ','ET','GA','GM','GH','GN','GW','CI','KE','LS','LR','LY','MW','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SS','SD','SZ','TZ','TG','TN','UG','ZM','ZW'
-]);
-const westernBlocCodes = new Set(['FR', 'NL', 'BE', 'AR', 'CL', 'US']);
-const holyleagueBlocCodes = new Set(['CH', 'VA', 'JO', 'LB', 'ML', 'CY']);
 
+// Helper per parsare CSV
+// Parser CSV che gestisce le virgolette (campi con virgole interne)
+function parseCSV(csvText) {
+    const rows = [];
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return rows;
+    
+    // Funzione per parsare una riga CSV rispettando le virgolette
+    function parseLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                // Se troviamo una virgoletta, invertiamo lo stato (dentro/fuori)
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                // Separatore di colonna fuori dalle virgolette
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim()); // ultimo campo
+        return result;
+    }
+    
+    const headers = parseLine(lines[0]);
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseLine(lines[i]);
+        if (values.length === headers.length) {
+            const row = {};
+            headers.forEach((header, idx) => { row[header] = values[idx]; });
+            rows.push(row);
+        }
+    }
+    return rows;
+}
 
-function buildBlocMap() {
+// Parser per il CSV dei NAP (colonne: nazione_A, nap_con)
+function parseNapsCSV(csvText) {
+    const rows = [];
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return rows;
+    
+    function parseLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    }
+    
+    const headers = parseLine(lines[0]);
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseLine(lines[i]);
+        if (values.length === headers.length) {
+            const row = {};
+            headers.forEach((header, idx) => { row[header] = values[idx]; });
+            rows.push(row);
+        }
+    }
+    return rows;
+}
+async function loadExternalNaps() {
+    try {
+        const cacheBuster = `?t=${Date.now()}`;
+        const response = await fetch(EXTERNAL_NAPS_URL + cacheBuster);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const csvText = await response.text();
+        const napsData = parseNapsCSV(csvText);
+        
+        // Pulisci strutture esistenti
+        externalNapsList = [];
+        externalNapsSet.clear();
+        
+        for (const row of napsData) {
+            const nationACode = row.nazione_A?.trim().toUpperCase();
+            const napConStr = row.nap_con?.trim();
+            if (!nationACode || !napConStr) continue;
+            
+            const countryA = nazioniGlobal.find(n => n.code?.toUpperCase() === nationACode);
+            if (!countryA) continue;
+            
+            const targets = napConStr.split(',').map(c => c.trim().toUpperCase());
+            for (const targetCode of targets) {
+                const countryB = nazioniGlobal.find(n => n.code?.toUpperCase() === targetCode);
+                if (countryB) {
+                    const idA = countryA._id;
+                    const idB = countryB._id;
+                    const key = `${idA}-${idB}`;
+                    const revKey = `${idB}-${idA}`;
+                    if (!externalNapsSet.has(key) && !externalNapsSet.has(revKey)) {
+                        externalNapsSet.add(key);
+                        externalNapsList.push({ fromId: idA, toId: idB, fromName: countryA.name, toName: countryB.name });
+                    }
+                }
+            }
+        }
+        
+        console.log(`[External] Caricati ${externalNapsList.length} NAP unici (reciproci)`);
+        
+        // Se ci sono NAP esterni, aggiorna la lista nell'interfaccia
+        if (externalNapsList.length > 0) {
+            updateExternalNapsUI();
+        }
+        
+        // Forza un refresh della mappa per applicare i nuovi NAP (se la modalità corrente li usa)
+        renderMap();
+        
+        showToast(`${externalNapsList.length} NAP esterni caricati`, 'success');
+    } catch (error) {
+        console.error('Errore nel caricamento NAP esterni:', error);
+        showToast('NAP esterni non disponibili.', 'warning');
+    }
+}
+// Carica i blocchi esterni e ricostruisce le mappe
+async function loadExternalBlocs() {
+    try {
+        showLoading();
+        // Aggiunge un parametro 't' con timestamp per il cache busting
+        const cacheBuster = `?t=${new Date().getTime()}`;
+        const response = await fetch(EXTERNAL_BLOCS_URL + cacheBuster);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const csvText = await response.text();
+        const blocsData = parseCSV(csvText);
+        console.log(`[External] Caricati ${blocsData.length} blocchi`);
+        
+        buildBlocMapFromData(blocsData);
+        
+        updateDynamicLegend();
+        if (coloringMode === 'blocs') renderMap();
+
+        showToast('Blocchi di alleanze caricati con successo!', 'success');
+    } catch (error) {
+        console.error('Errore nel caricamento blocchi esterni:', error);
+        showToast('Blocchi esterni non disponibili. Uso configurazione interna.', 'warning');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ============================================================
+// 5c – Costruzione mappa blocchi con fallback opzionale
+// ============================================================
+
+// Dati hardcoded di fallback (gli stessi blocchi originali)
+function getHardcodedBlocsData() {
+    return [
+        { nome_blocco: "Olive Union", codici_nazioni: "IT,HR,HU,GR,TR,IQ,EG,LT", colore: COLORS.ITALIAN_BLOC, label_lng: "30", label_lat: "40" },
+        { nome_blocco: "test", codici_nazioni: "FR,NL,BE,AR,CL,US", colore: COLORS.WESTERN_BLOC, label_lng: "-70", label_lat: "30" },
+        { nome_blocco: "African Union", codici_nazioni: "AO,DZ,BJ,BW,BF,BI,CM,CV,CF,KM,CD,DJ,EG,GQ,ET,GA,GM,GH,GN,GW,CI,KE,LS,LR,LY,MW,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SS,SD,SZ,TZ,TG,TN,UG,ZM,ZW", colore: COLORS.AFRICAN_UNION, label_lng: "-10", label_lat: "-20" },
+        { nome_blocco: "Asian Federation", codici_nazioni: "BT,BN,CN,TL,EG,FJ,IN,IQ,PS,PG,PH,TR,KP,VN,VU", colore: COLORS.ASIAN_FEDERATION, label_lng: "90", label_lat: "-15" },
+        { nome_blocco: "ICDP", codici_nazioni: "RO,DE,UA,RS", colore: COLORS.ICDP, label_lng: "20", label_lat: "52" },
+        { nome_blocco: "Holy League", codici_nazioni: "CH,VA,JO,LB,ML,CY", colore: COLORS.HOLY_LEAGUE, label_lng: "35", label_lat: "35" }
+    ];
+}
+
+// Costruisce la mappa dei blocchi a partire dai dati (esterni o fallback)
+function buildBlocMapFromData(blocsData) {
     blocColorMap.clear();
     multiBlocMap.clear();
+    externalBlocsInfo = [];
 
-    nazioniGlobal.forEach(n => {
-        const code = n.code?.toUpperCase();
-        if (!code) return;
+    // Se non ci sono dati, usa il fallback hardcoded
+    if (!blocsData || blocsData.length === 0) {
+        console.warn('[Fallback] Nessun dato esterno, uso configurazione hardcoded');
+        blocsData = getHardcodedBlocsData();
+    }
 
-        const hits = [];
-        if (italianBlocCodes.has(code))     hits.push({ name: 'italian', color: COLORS.ITALIAN_BLOC });
-        if (icdpCodes.has(code))            hits.push({ name: 'icdp',    color: COLORS.ICDP });
-        if (asianFederationCodes.has(code)) hits.push({ name: 'asian',   color: COLORS.ASIAN_FEDERATION });
-        if (africanCodes.has(code))         hits.push({ name: 'african', color: COLORS.AFRICAN_UNION });
-        if (westernBlocCodes.has(code))     hits.push({ name: 'western', color: COLORS.WESTERN_BLOC }); 
-        if (holyleagueBlocCodes.has(code))  hits.push({ name: 'holy', color: COLORS.HOLY_LEAGUE }); 
+    for (const bloc of blocsData) {
+        const blocName = bloc.nome_blocco;
+        const blocColor = bloc.colore;
+        const labelLng = parseFloat(bloc.label_lng);
+        const labelLat = parseFloat(bloc.label_lat);
+        if (!blocColor) continue;
 
+        // Memorizza info per legenda e etichette
+        externalBlocsInfo.push({
+            name: blocName,
+            color: blocColor,
+            labelLng: isNaN(labelLng) ? null : labelLng,
+            labelLat: isNaN(labelLat) ? null : labelLat
+        });
 
-        if (hits.length === 0) return;
-
-        if (hits.length === 1) {
-            blocColorMap.set(n._id, hits[0].color);
-        } else {
-            const patternKey = 'stripe-' + hits.map(h => h.name).join('-');
-            multiBlocMap.set(n._id, { colors: hits.map(h => h.color), patternKey });
-            blocColorMap.set(n._id, hits[0].color); // fallback colore singolo
+        const countryCodes = bloc.codici_nazioni.split(',').map(c => c.trim().toUpperCase());
+        for (const code of countryCodes) {
+            const country = nazioniGlobal.find(n => n.code?.toUpperCase() === code);
+            if (country) {
+                const countryId = country._id;
+                if (blocColorMap.has(countryId)) {
+                    // Multi-bloc: accumula i colori
+                    let existingColors = [blocColorMap.get(countryId)];
+                    const existingMulti = multiBlocMap.get(countryId);
+                    if (existingMulti) existingColors = existingMulti.colors;
+                    const newColors = [...existingColors, blocColor];
+                    const patternKey = `stripe-${newColors.join('-')}`;
+                    multiBlocMap.set(countryId, { colors: newColors, patternKey });
+                } else {
+                    blocColorMap.set(countryId, blocColor);
+                }
+            }
         }
-    });
+    }
 }
 
 function getOriginalBordersMesh(topoData) {
@@ -554,6 +771,11 @@ function initPanelStates() {
         const content = document.getElementById(id);
         const side = id.split('-')[1];
         const icon = document.getElementById('icon-' + side);
+            // Inizializza le sezioni NAP come aperte
+    const manualSection = document.getElementById('manual-nap-section');
+    const externalSection = document.getElementById('external-nap-section');
+    if (manualSection) manualSection.style.maxHeight = '200px';
+    if (externalSection) externalSection.style.maxHeight = '200px';
         if (!content || !icon) return;
         const saved = localStorage.getItem(id + '-collapsed');
         if (saved === 'true') {
@@ -635,16 +857,24 @@ function getEnemyAllies(targetId) {
 
 function getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
     const isManualNap = customNaps.includes(cId);
+    const excludeExternalNaps = document.getElementById('checkExcludeExternalNaps')?.checked || false;
+    let isExternalNap = false;
+    if (!excludeExternalNaps && selectedCountryId) {
+        isExternalNap = externalNapsSet.has(`${selectedCountryId}-${cId}`) || externalNapsSet.has(`${cId}-${selectedCountryId}`);
+    }
+    const isNap = isManualNap || isExternalNap;
+    
+    
     if (!selectedCountryId) {
         return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
     }
-    if (cId === selectedCountryId)                              return COLORS.SELECTED;
-    if (isManualNap)                                            return COLORS.NAP;
-    if (directAllies.includes(cId))                             return COLORS.ALLY_DIRECT;
-    if (directWars.includes(cId))                               return COLORS.WAR_DIRECT;
+    if (cId === selectedCountryId) return COLORS.SELECTED;
+    if (isNap) return COLORS.NAP;
+    if (directAllies.includes(cId)) return COLORS.ALLY_DIRECT;
+    if (directWars.includes(cId)) return COLORS.WAR_DIRECT;
     if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) return COLORS.BORDERLINE;
-    if (enemyAllies.includes(cId))                              return COLORS.WAR_INDIRECT;
-    if (indirectAllies.includes(cId) && isExtended)             return COLORS.ALLY_INDIRECT;
+    if (enemyAllies.includes(cId)) return COLORS.WAR_INDIRECT;
+    if (indirectAllies.includes(cId) && isExtended) return COLORS.ALLY_INDIRECT;
     return COLORS.DEFAULT_LAND;
 }
 
@@ -691,14 +921,22 @@ function buildOriginalBlocColorExpression() {
 }
 function buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended) {
     const colorMap = new Map();
+    const excludeExternalNaps = document.getElementById('checkExcludeExternalNaps')?.checked || false;
+
     nazioniGlobal.forEach(n => {
         const id = n._id;
         let color;
+
         if (!selectedCountryId) {
             color = nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
         } else if (id === selectedCountryId) {
             color = COLORS.SELECTED;
         } else if (customNaps.includes(id)) {
+            color = COLORS.NAP;
+        } else if (
+            !excludeExternalNaps &&
+            (externalNapsSet.has(`${selectedCountryId}-${id}`) || externalNapsSet.has(`${id}-${selectedCountryId}`))
+        ) {
             color = COLORS.NAP;
         } else if (directAllies.includes(id)) {
             color = COLORS.ALLY_DIRECT;
@@ -715,6 +953,7 @@ function buildOriginalColorExpression(directWars, directAllies, indirectAllies, 
         }
         colorMap.set(id, color);
     });
+
     const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
     for (let [id, color] of colorMap.entries()) {
         expr.push(id.toString(), color);
@@ -757,7 +996,6 @@ function buildOriginalLabels() {
             numCoords: coords.length
         });
     });
-
     // Funzione point-in-polygon (solo per Polygon/MultiPolygon)
     function pointInPolygon(point, polygon) {
         const x = point[0], y = point[1];
@@ -867,57 +1105,51 @@ function hashColor(str) {
 // ============================================================
 // LEGEND & STATS
 // ============================================================
+// ============================================================
+// LEGEND & STATS (versione dinamica per i blocchi)
+// ============================================================
 function updateDynamicLegend() {
     const box = document.getElementById('dynamic-legend');
-    if (currentMode === 'blocs') {
-        const multiEntries = [...multiBlocMap.values()];
-        const multiHtml = multiEntries.length > 0
-            ? `<div class="legend-item">
-                <div class="dot" style="background:linear-gradient(135deg,${[...new Set(multiEntries.map(e=>e.colors[0]))][0]} 50%,${[...new Set(multiEntries.map(e=>e.colors[1]))][0]} 50%)"></div>
-                <span>Multi-bloc</span>
-               </div>`
-            : '';
-        box.innerHTML = `
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Olive union allies</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
-            <div class="legend-item"><div class="dot" style="background:${COLORS.HOLY_LEAGUE}"></div><span>Holy League</span></div>
-
-            ${multiHtml}
-            <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>
-        `;
-        return;
-    }
-    if (currentMode === 'original') {
-        if (!selectedCountryId) {
-            box.innerHTML = `
-                <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
-                <div style="font-size:10px;color:#666;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px">Shows original owners<br>incl. conquered nations</div>
-            `;
+    
+    if (coloringMode === 'blocs') {
+        if (externalBlocsInfo && externalBlocsInfo.length > 0) {
+            let legendHtml = '';
+            for (const bloc of externalBlocsInfo) {
+                legendHtml += `<div class="legend-item"><div class="dot" style="background:${bloc.color}"></div><span>${bloc.name}</span></div>`;
+            }
+            const multiEntries = [...multiBlocMap.values()];
+            if (multiEntries.length > 0) {
+                legendHtml += `<div class="legend-item"><div class="dot" style="background:linear-gradient(135deg,${multiEntries[0].colors[0]} 50%,${multiEntries[0].colors[1]} 50%)"></div><span>Multi-bloc</span></div>`;
+            }
+            legendHtml += `<div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
+            box.innerHTML = legendHtml;
         } else {
-            box.innerHTML = `
-                <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_DIRECT}"></div><span>DIRECT WAR</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_INDIRECT}"></div><span>INDIRECT ENEMY</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_DIRECT}"></div><span>DIRECT ALLY</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
-                <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
-                <div style="font-size:10px;color:#666;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px">Original territory borders</div>
-            `;
+            box.innerHTML = `<div class="legend-item"><div class="dot" style="background:${COLORS.ITALIAN_BLOC}"></div><span>Olive Union</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.WESTERN_BLOC}"></div><span>Olive union allies</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.AFRICAN_UNION}"></div><span>African Union</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.ASIAN_FEDERATION}"></div><span>Asian Federation</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.ICDP}"></div><span>ICDP</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.HOLY_LEAGUE}"></div><span>Holy League</span></div>
+                <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
         }
         return;
     }
-    if (!selectedCountryId) {
+    
+    // Modalità diplomacy
+    if (mapSource === 'original' && !selectedCountryId) {
         box.innerHTML = `
             <div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
             <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
-        `;
+            <div style="font-size:10px;color:#666;margin-top:8px;">Original owners</div>`;
         return;
     }
+    
+    if (!selectedCountryId) {
+        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div>
+            <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>`;
+        return;
+    }
+    
     box.innerHTML = `
         <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
         <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
@@ -927,8 +1159,10 @@ function updateDynamicLegend() {
         <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
         <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
     `;
+    if (mapSource === 'original') {
+        box.innerHTML += `<div style="font-size:10px;color:#666;margin-top:8px;">Original territory borders</div>`;
+    }
 }
-
 function updateStats() {
     if (!selectedCountryId) {
         document.getElementById('stats-allies').textContent = '0';
@@ -954,7 +1188,7 @@ function updateSelectedDisplay() {
     if (!nation) { display.style.display = 'none'; return; }
     nameDisplay.textContent = nation.name;
     let code = '';
-    if (currentMode === 'original') {
+    if (mapSource  === 'original') {
         const origLabel = originalLabelsData.find(l => l.properties.countryId === selectedCountryId);
         code = origLabel?.properties?.countryCode || nation.code?.toLowerCase() || '';
     } else {
@@ -974,25 +1208,20 @@ function updateSelectedDisplay() {
     display.style.display = 'block';
 }
 
-function setMode(mode) {
-    currentMode = mode;
-    updateBlocSwitchVisibility();
-    if (window.umami) umami.track('mode-change', { mode: mode });
+function updateMapAndRender() {
+    mapSource = document.getElementById('map-source-selector').value;
+    coloringMode = document.getElementById('coloring-mode-selector').value;
+    // Tracciamento Umami (sostituisce il vecchio setMode)
+    if (window.umami) {
+        umami.track('mode-change', { 
+            map_source: mapSource, 
+            coloring_mode: coloringMode 
+        });
+    }
     renderMap();
 }
-function updateBlocSwitchVisibility() {
-    const container = document.getElementById('bloc-original-switch-container');
-    if (container) {
-        container.style.display = currentMode === 'original' ? 'flex' : 'none';
-    }
-}
 function shouldShowBlocLabels() {
-    if (currentMode === 'blocs') return true;
-    if (currentMode === 'original') {
-        const useBlocColors = document.getElementById('checkBlocInOriginal')?.checked || false;
-        return useBlocColors;
-    }
-    return false;
+    return coloringMode === 'blocs';
 }
 // ============================================================
 // CORE MAP RENDER
@@ -1004,9 +1233,10 @@ function renderMap() {
     updateStats();
     updateSelectedDisplay();
 
+    // Gestione confini (border lines)
     const borderLayer = map.getLayer(LYR_BORDER);
     const originalBorderLayer = map.getLayer('original-borders-line');
-    if (currentMode === 'original') {
+    if (mapSource === 'original') {
         if (borderLayer) map.setLayoutProperty(LYR_BORDER, 'visibility', 'none');
         if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'visible');
     } else {
@@ -1014,66 +1244,63 @@ function renderMap() {
         if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'none');
     }
 
-    if (currentMode === 'blocs') {
-        const expr = buildBlocColorExpression();
-        if (map.getLayer(LYR_FILL)) {
-            map.setPaintProperty(LYR_FILL, 'fill-color', expr);
-            map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
-        }
-        if (map.getLayer(LYR_MULTI_BLOC)) {
+    // Gestione layer multi-bloc
+    if (map.getLayer(LYR_MULTI_BLOC)) {
+        if (coloringMode === 'blocs') {
             const multiIds = [...multiBlocMap.keys()];
             if (multiIds.length > 0) {
                 map.setFilter(LYR_MULTI_BLOC, ['in', ['get', 'countryId'], ['literal', multiIds]]);
                 map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
             }
             map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', multiIds.length > 0 ? 'visible' : 'none');
-        }
-    } else {
-        if (map.getLayer(LYR_MULTI_BLOC)) {
+        } else {
             map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
         }
+    }
 
-        const isExtended = document.getElementById('checkExtended').checked;
-        
-        let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
-        if (selectedCountryId) {
-            const target = nationMap.get(selectedCountryId);
-            if (target) {
-                directWars     = target.warsWith || [];
-                directAllies   = target.allies   || [];
-                indirectAllies = getIndirectAllies(selectedCountryId);
-                enemyAllies    = getEnemyAllies(selectedCountryId);
-            }
+    // Calcolo relazioni diplomatiche (per modalità diplomacy)
+    const isExtended = document.getElementById('checkExtended').checked;
+    let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
+    if (coloringMode === 'diplomacy' && selectedCountryId) {
+        const target = nationMap.get(selectedCountryId);
+        if (target) {
+            directWars = target.warsWith || [];
+            directAllies = target.allies || [];
+            indirectAllies = getIndirectAllies(selectedCountryId);
+            enemyAllies = getEnemyAllies(selectedCountryId);
         }
+    }
 
-        let fillExpr;
-        if (currentMode === 'original') {
-            useBlocColorsInOriginal = document.getElementById('checkBlocInOriginal')?.checked || false;
-            if (useBlocColorsInOriginal) {
-                fillExpr = buildOriginalBlocColorExpression();
-            } else {
-                fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
-            }
+    let fillExpr;
+    if (coloringMode === 'blocs') {
+        // Colorazione a blocchi (usa la fonte dei confini)
+        if (mapSource === 'actual') {
+            fillExpr = buildBlocColorExpression();
         } else {
-            // modalità diplomacy standard
+            fillExpr = buildOriginalBlocColorExpression();
+        }
+    } else {
+        // Colorazione diplomatica (usa la fonte dei confini)
+        if (mapSource === 'actual') {
             const styleMap = {};
             labelsData.forEach(l => {
                 if (l.properties?.countryId && l.properties?.strokeColor)
                     styleMap[l.properties.countryId] = l.properties.strokeColor;
             });
             fillExpr = buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
+        } else {
+            fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
         }
+    }
 
-        if (map.getLayer(LYR_FILL)) {
-            map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
-            map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
-        }
+    if (map.getLayer(LYR_FILL)) {
+        map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
+        map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
     }
 
     toggleLabels();
     if (labelCanvas) map.triggerRepaint();
 }
-
 // ============================================================
 // CANVAS LABEL OVERLAY
 // ============================================================
@@ -1089,7 +1316,22 @@ function initLabelCanvas() {
     map.on('render', drawLabels);
     window.addEventListener('resize', resizeLabelCanvas);
 }
-
+function toggleNapSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
+    const icon = document.getElementById(iconId);
+    if (!section || !icon) return;
+    
+    if (section.style.maxHeight && section.style.maxHeight !== '0px') {
+        section.style.maxHeight = '0';
+        icon.innerHTML = '▶';
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        section.style.maxHeight = '200px';
+        icon.innerHTML = '▼';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
 function resizeLabelCanvas() {
     if (!labelCanvas) return;
     const container = map.getContainer();
@@ -1106,52 +1348,43 @@ function toggleLabels() {
 }
 
 function drawBlocLabels(ctx, W, H, force = false) {
-    if (!force && currentMode !== 'blocs') return;
+    if (!force && coloringMode !== 'blocs') return;
+    if (!externalBlocsInfo || externalBlocsInfo.length === 0) return;
+    
     const zoom = map.getZoom();
     const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
-    const blocPositions = [
-        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
-        { name: 'OLIVE UNION ALLIES', lng: -70, lat: 30, color: COLORS.WESTERN_BLOC },
-        { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
-        { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
-        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP },
-        { name: 'HOLY LEAGUE', lng: 35, lat: 35, color: COLORS.HOLY_LEAGUE }
-    ];
-    blocPositions.forEach(b => {
-        const pt = map.project([b.lng, b.lat]);
+    ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+    
+    for (const bloc of externalBlocsInfo) {
+        if (bloc.labelLng === null || bloc.labelLat === null) continue;
+        const pt = map.project([bloc.labelLng, bloc.labelLat]);
         const sx = pt.x, sy = pt.y;
-        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) return;
-        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        if (sx < -100 || sx > W + 100 || sy < -60 || sy > H + 60) continue;
+        
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 8;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 4;
-        ctx.strokeText(b.name, sx, sy);
+        ctx.strokeText(bloc.name, sx, sy);
         ctx.shadowBlur = 0;
-        ctx.fillStyle = b.color;
-        ctx.fillText(b.name, sx, sy);
-    });
+        ctx.fillStyle = bloc.color;
+        ctx.fillText(bloc.name, sx, sy);
+    }
 }
 function drawAndCollectBlocLabels(ctx, W, H) {
     const blocBBoxes = [];
+    if (!externalBlocsInfo || externalBlocsInfo.length === 0) return blocBBoxes;
+    
     const zoom = map.getZoom();
     const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
     ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-    const blocPositions = [
-        { name: 'OLIVE UNION', lng: 30, lat: 40, color: COLORS.ITALIAN_BLOC },
-        { name: 'OLIVE UNION ALLIES', lng: -70, lat: 30, color: COLORS.WESTERN_BLOC },
-        { name: 'AFRICAN UNION', lng: -10, lat: -20, color: COLORS.AFRICAN_UNION },
-        { name: 'ASIAN FEDERATION', lng: 90, lat: -15, color: COLORS.ASIAN_FEDERATION },
-        { name: 'ICDP', lng: 20, lat: 52, color: COLORS.ICDP },
-        { name: 'HOLY LEAGUE', lng: 35, lat: 35, color: COLORS.HOLY_LEAGUE }
-    ];
     const BLOC_MARGIN = 30;
-    blocPositions.forEach(b => {
-        const pt = map.project([b.lng, b.lat]);
+    
+    for (const bloc of externalBlocsInfo) {
+        if (bloc.labelLng === null || bloc.labelLat === null) continue;
+        const pt = map.project([bloc.labelLng, bloc.labelLat]);
         if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
-            const metrics = ctx.measureText(b.name);
+            const metrics = ctx.measureText(bloc.name);
             const textWidth = metrics.width;
             const textHeight = fontSize;
             blocBBoxes.push({
@@ -1164,12 +1397,12 @@ function drawAndCollectBlocLabels(ctx, W, H) {
             ctx.shadowBlur = 8;
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 4;
-            ctx.strokeText(b.name, pt.x, pt.y);
+            ctx.strokeText(bloc.name, pt.x, pt.y);
             ctx.shadowBlur = 0;
-            ctx.fillStyle = b.color;
-            ctx.fillText(b.name, pt.x, pt.y);
+            ctx.fillStyle = bloc.color;
+            ctx.fillText(bloc.name, pt.x, pt.y);
         }
-    });
+    }
     return blocBBoxes;
 }
 
@@ -1202,7 +1435,8 @@ function drawLabels() {
     }
 
     const zoom = map.getZoom();
-    const sourceLabels = currentMode === 'original' ? originalLabelsData : labelsData;
+    // Usa mapSource per decidere quale set di etichette utilizzare
+    const sourceLabels = mapSource === 'original' ? originalLabelsData : labelsData;
     const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
 
     function intersects(box1, box2) {
@@ -1272,12 +1506,13 @@ function drawLabels() {
             ctx.drawImage(cachedFlag, sx - flagW / 2, startY, flagW, flagH);
         }
 
+        // Colore del testo in base alla modalità di colorazione
         let textColor;
         const cId = props.countryId;
-        if (currentMode === 'blocs') {
+        if (coloringMode === 'blocs') {
             textColor = blocColorMap.get(cId) || '#cccccc';
             if (selectedCountryId === cId) textColor = '#ffffff';
-        } else if (currentMode === 'original') {
+        } else if (mapSource === 'original') {
             textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
             if (selectedCountryId === cId) textColor = '#ffffff';
         } else {
@@ -1446,7 +1681,7 @@ function setupMapLayers() {
 function onRegionClick(e) {
     if (!e.features || e.features.length === 0) return;
     let cId;
-    if (currentMode === 'original') {
+    if (mapSource === 'original') {
         cId = e.features[0].properties.initialCountryId;
     } else {
         cId = e.features[0].properties.countryId;
@@ -1455,7 +1690,7 @@ function onRegionClick(e) {
     renderMap();
    if (window.umami && selectedCountryId) {
     const nation = nationMap.get(selectedCountryId);
-      if (nation) umami.track('nation-click', { nation: nation.name, mode: currentMode });
+      if (nation) umami.track('nation-click', { nation: nation.name, map_source: mapSource, coloring_mode: coloringMode });
         if (nation) showToast(`Selected: ${nation.name}`, 'info');
     }
 }
@@ -1503,10 +1738,10 @@ async function refreshData() {
         mapDataGlobal = mapData.result.data;
         nationMap.clear();
         nazioniGlobal.forEach(n => nationMap.set(n._id, n));
-        buildBlocMap();
+        await loadExternalBlocs();
+        await loadExternalNaps();
         popolaListe();
         setupMapLayers();
-        updateBlocSwitchVisibility();
 
         // Colori base da labelsData (nazioni con territorio attuale)
         nationBaseColorMap.clear();
@@ -1530,11 +1765,15 @@ async function refreshData() {
                 loadFlagImage(code);
             }
         });
+                // Forza aggiornamento UI NAP
+        updateExternalNapsUI();
+        console.log('[Debug] NAP esterni:', externalNapsList);
         showToast('Strategic data loaded successfully', 'success');
     } catch (e) {
         console.error('Data Error:', e);
         showToast('Failed to load game data. Please refresh.', 'error');
-    } finally {
+    } 
+    finally {
         hideLoading();
     }
 }
@@ -1597,7 +1836,35 @@ function aggiornaListaNap() {
         }
     });
 }
-
+function updateExternalNapsUI() {
+    const container = document.getElementById('externalNapList');
+    if (!container) return;
+    
+    if (!externalNapsList || externalNapsList.length === 0) {
+        container.innerHTML = '<div class="empty-state">No external NAPs loaded</div>';
+        return;
+    }
+    
+    // Raggruppa per nazione A (per visualizzazione più chiara)
+    const grouped = new Map();
+    for (const nap of externalNapsList) {
+        if (!grouped.has(nap.fromId)) grouped.set(nap.fromId, []);
+        grouped.get(nap.fromId).push(nap.toName);
+    }
+    
+    let html = '';
+    for (const [fromId, toNames] of grouped) {
+        const fromNation = nationMap.get(fromId);
+        if (!fromNation) continue;
+        html += `
+            <div class="nap-item" style="border-left-color: #55a5d9; background: rgba(85,165,217,0.1);">
+                <span style="font-weight:600">${fromNation.name}</span>
+                <span style="color:#aaa; font-size:11px;">→ ${toNames.join(', ')}</span>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
 // ============================================================
 // SEARCH & RESET
 // ============================================================
@@ -1629,10 +1896,23 @@ function resetDiplomazia() {
     document.getElementById('cercaInput').value = '';
     document.getElementById('checkExtended').checked = false;
     document.getElementById('napInput').value = '';
+    
+    // Resetta i selettori principali
+    document.getElementById('map-source-selector').value = 'actual';
+    document.getElementById('coloring-mode-selector').value = 'diplomacy';
+    mapSource = 'actual';
+    coloringMode = 'diplomacy';
+    
+    // (Opzionale) Resetta anche il toggle "Escludi NAP esterni"
+    const excludeNapsCheckbox = document.getElementById('checkExcludeExternalNaps');
+    if (excludeNapsCheckbox) excludeNapsCheckbox.checked = false;
+    
     aggiornaListaNap();
-    if (window.umami) umami.track('diplomacy-reset', { mode: currentMode });
+    if (window.umami) umami.track('diplomacy-reset', { 
+        map_source: mapSource, 
+        coloring_mode: coloringMode 
+    });
     renderMap();
-    showToast('Reset complete', 'info');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
