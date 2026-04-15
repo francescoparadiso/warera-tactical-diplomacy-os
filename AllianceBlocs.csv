@@ -1,7 +1,8 @@
 nome_blocco,codici_nazioni,colore,label_lng,label_lat
 Olive Union,"IT,HR,HU,GR,TR,IQ,EG,LT",#1b557a,30,40
-Olive Union Allies,"FR,NL,BE,AR,CL,US",#55a5d9,-80,30
+Olive Union Allies,"FR,NL,BE,AR,CL,US",#55a5d9,-70,30
 African Union,"AO,DZ,BJ,BW,BF,BI,CM,CV,CF,KM,CD,DJ,EG,GQ,ET,GA,GM,GH,GN,GW,CI,KE,LS,LR,LY,MW,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SS,SD,SZ,TZ,TG,TN,UG,ZM,ZW",#e67e22,-10,-20
 Asian Federation,"BT,BN,CN,TL,EG,FJ,IN,IQ,PS,PG,PH,TR,KP,VN,VU",#8e44ad,90,-15
 ICDP,"RO,DE,UA,RS",#c0392b,20,52
 Holy League,"CH,VA,JO,LB,ML,CY",#FFD700,35,35
+Test,"PL",#FFD700,55,55
