@@ -770,46 +770,142 @@ function getOriginalBordersMesh(topoData) {
     return mesh;
 }
 
-function createBlendPattern(colors, sz = 2048) {
+function createBlendPattern(colors, seed, sz = 16) {
     const canvas = document.createElement('canvas');
     canvas.width = sz;
     canvas.height = sz;
     const ctx = canvas.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, sz, sz);
-    const step = 1 / (colors.length - 1);
-    colors.forEach((color, idx) => { gradient.addColorStop(idx * step, color); });
-    ctx.fillStyle = gradient;
+    
+    // Usa il seed per determinare orientamento e spessore in modo univoco
+    const seedNum = typeof seed === 'string' ? parseInt(seed, 36) : Number(seed) || 0;
+    const orientation = Math.abs(seedNum) % 4;          // 0: orizzontale, 1: verticale, 2: diagonale \, 3: diagonale /
+    const stripeWidth = 2 + (Math.abs(seedNum) % 4);    // 2–5 pixel
+    
+    ctx.clearRect(0, 0, sz, sz);
+    
+    // Colore di sfondo (primo colore)
+    ctx.fillStyle = colors[0];
     ctx.fillRect(0, 0, sz, sz);
-    ctx.strokeStyle = '#000000';
+    
+    // Disegna strisce con i colori successivi
+    for (let i = 1; i < colors.length; i++) {
+        ctx.fillStyle = colors[i];
+        const step = colors.length * stripeWidth;
+        
+        switch(orientation) {
+            case 0: // orizzontali
+                for (let y = i * stripeWidth; y < sz; y += step) {
+                    ctx.fillRect(0, y, sz, stripeWidth);
+                }
+                break;
+            case 1: // verticali
+                for (let x = i * stripeWidth; x < sz; x += step) {
+                    ctx.fillRect(x, 0, stripeWidth, sz);
+                }
+                break;
+            case 2: // diagonali \
+                ctx.save();
+                ctx.translate(0, 0);
+                ctx.rotate(Math.PI / 4);
+                const diagStep = step * 1.5;
+                for (let d = -sz; d < sz * 2; d += diagStep) {
+                    ctx.fillRect(d + i * stripeWidth * 1.5, -sz, stripeWidth, sz * 3);
+                }
+                ctx.restore();
+                break;
+            case 3: // diagonali /
+                ctx.save();
+                ctx.translate(sz, 0);
+                ctx.rotate(-Math.PI / 4);
+                for (let d = -sz; d < sz * 2; d += step * 1.5) {
+                    ctx.fillRect(d + i * stripeWidth * 1.5, -sz, stripeWidth, sz * 3);
+                }
+                ctx.restore();
+                break;
+        }
+    }
+    
+    // Bordo nero sottile
+    ctx.strokeStyle = '#000';
     ctx.lineWidth = 0.5;
     ctx.strokeRect(0, 0, sz, sz);
+    
     return canvas;
 }
 
-function createAndAddStripePatterns() {
-    const seen = new Set();
-    multiBlocMap.forEach(({ colors, patternKey }) => {
-        if (seen.has(patternKey)) return;
-        seen.add(patternKey);
-        const canvas = createBlendPattern(colors, 8);
+const patternImageCache = new Map();
+
+function preloadPatternImage(patternKey, colors, seed) {
+    return new Promise((resolve) => {
+        if (patternImageCache.has(patternKey)) {
+            resolve(patternImageCache.get(patternKey));
+            return;
+        }
+        const canvas = createBlendPattern(colors, seed, 16);
         const img = new Image();
         img.onload = () => {
-            if (!map.hasImage(patternKey)) {
+            patternImageCache.set(patternKey, img);
+            if (map && !map.hasImage(patternKey)) {
                 map.addImage(patternKey, img);
-                if (map.getLayer(LYR_MULTI_BLOC)) map.triggerRepaint();
             }
+            resolve(img);
         };
+        img.onerror = () => resolve(null);
         img.src = canvas.toDataURL();
     });
 }
 
-function buildMultiBlocPatternExpression() {
+async function buildMultiBlocPatternExpression() {
+    const entries = [...multiBlocMap.entries()];
+    if (entries.length === 0) return '';
+    
+    // Precarica tutte le immagini
+    const promises = entries.map(([id, { colors }]) => {
+        const patternKey = `stripe-${id}-${colors.join('-')}`;
+        return preloadPatternImage(patternKey, colors, id);
+    });
+    await Promise.all(promises);
+    
+    const expr = ['match', ['get', 'countryId']];
+    entries.forEach(([id, { colors }]) => {
+        const patternKey = `stripe-${id}-${colors.join('-')}`;
+        expr.push(id, patternKey);
+    });
+    const firstEntry = entries[0];
+    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
+    expr.push(fallbackKey);
+    return expr;
+}
+
+function getMultiBlocPatternExpression() {
     const entries = [...multiBlocMap.entries()];
     if (entries.length === 0) return '';
     const expr = ['match', ['get', 'countryId']];
-    entries.forEach(([id, { patternKey }]) => expr.push(id, patternKey));
-    expr.push(entries[0][1].patternKey);
+    entries.forEach(([id, { colors }]) => {
+        const patternKey = `stripe-${id}-${colors.join('-')}`;
+        expr.push(id, patternKey);
+    });
+    const firstEntry = entries[0];
+    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
+    expr.push(fallbackKey);
     return expr;
+}
+function getMultiBlocPatternExpressionOriginal() {
+    const entries = [...multiBlocMap.entries()];
+    if (entries.length === 0) return '';
+    const expr = ['match', ['get', 'initialCountryId']];
+    entries.forEach(([id, { colors }]) => {
+        const patternKey = `stripe-${id}-${colors.join('-')}`;
+        expr.push(id, patternKey);
+    });
+    const firstEntry = entries[0];
+    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
+    expr.push(fallbackKey);
+    return expr;
+}
+// createAndAddStripePatterns non serve più
+function createAndAddStripePatterns() {
+    // vuota
 }
 
 // ============================================================
@@ -1195,17 +1291,33 @@ function renderMap() {
         if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'none');
     }
 
-    if (map.getLayer(LYR_MULTI_BLOC)) {
-        if (coloringMode === 'blocs') {
-            const multiIds = [...multiBlocMap.keys()];
-            if (multiIds.length > 0) {
-                map.setFilter(LYR_MULTI_BLOC, ['in', ['get', 'countryId'], ['literal', multiIds]]);
-                map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
+    // Gestione layer multi-blocco per entrambe le viste (Actual e Original)
+    const multiBlocLayer = map.getLayer(LYR_MULTI_BLOC);
+    const multiBlocOriginalLayer = map.getLayer('multi-bloc-pattern-original');
+
+    if (coloringMode === 'blocs') {
+        const multiIds = [...multiBlocMap.keys()];
+        if (multiIds.length > 0) {
+            if (mapSource === 'original' && multiBlocOriginalLayer) {
+                const filter = ['in', ['get', 'initialCountryId'], ['literal', multiIds]];
+                map.setFilter('multi-bloc-pattern-original', filter);
+                map.setPaintProperty('multi-bloc-pattern-original', 'fill-pattern', getMultiBlocPatternExpressionOriginal());
+                map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'visible');
+                if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
+            } else if (multiBlocLayer) {
+                const filter = ['in', ['get', 'countryId'], ['literal', multiIds]];
+                map.setFilter(LYR_MULTI_BLOC, filter);
+                map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', getMultiBlocPatternExpression());
+                map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'visible');
+                if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
             }
-            map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', multiIds.length > 0 ? 'visible' : 'none');
         } else {
-            map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
+            if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
+            if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
         }
+    } else {
+        if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
+        if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
     }
 
     const isExtended = document.getElementById('checkExtended').checked;
@@ -1399,7 +1511,7 @@ function preloadAllFlags() {
 // ============================================================
 // SETUP MAPPA
 // ============================================================
-function setupMapLayers() {
+async function setupMapLayers() {
     const topoData = mapDataGlobal.map;
     baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
     labelsData = mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
@@ -1464,9 +1576,18 @@ function setupMapLayers() {
             layout: { visibility: 'none' },
             paint: { 'fill-opacity': 0.92 }
         });
-        if (multiIds.length) map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', buildMultiBlocPatternExpression());
     }
-
+    // Layer multi-bloc per vista ORIGINAL
+    if (!map.getLayer('multi-bloc-pattern-original')) {
+        map.addLayer({
+            id: 'multi-bloc-pattern-original',
+            type: 'fill',
+            source: SRC_REGIONS,
+            filter: ['==', ['get', 'initialCountryId'], '___none___'],
+            layout: { visibility: 'none' },
+            paint: { 'fill-opacity': 0.92 }
+        });
+    }
     if (!map.getLayer(LYR_COAST)) {
         map.addLayer({
             id: LYR_COAST,
@@ -1504,6 +1625,8 @@ function setupMapLayers() {
     map.on('mouseenter', LYR_FILL, () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', LYR_FILL, () => map.getCanvas().style.cursor = '');
 
+        // Precarica pattern multi-blocco
+    await buildMultiBlocPatternExpression();
     renderMap();
 }
 
@@ -1553,7 +1676,7 @@ async function refreshData() {
         await loadExternalBlocs();
         await loadExternalNaps();
         popolaListe();
-        setupMapLayers();
+        await setupMapLayers();
 
         nationBaseColorMap.clear();
         labelsData.forEach(label => { if (label.properties?.countryId) nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor); });
