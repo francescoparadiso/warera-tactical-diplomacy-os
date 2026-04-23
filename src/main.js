@@ -1,9 +1,10 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { state } from './state.js';
-import { hashColor, showToast, showLoading, hideLoading } from './utils.js';
+import { hashColor, showLoading, hideLoading } from './utils.js';
+import { showToast } from './ui.js';
 import { initMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
 import { loadExternalBlocs } from './blocs.js';
-import { loadExternalNaps, aggiungiNap, updateNapListUI } from './naps.js';
+import { loadExternalNaps, aggiungiNap } from './naps.js';
 import { syncUIToState, toggleNapSection, updateExternalNapsUI } from './ui.js';
 import { buildOriginalLabels, loadFlagImage } from './labels.js';
 
@@ -26,7 +27,6 @@ async function refreshData() {
     state.nationMap.clear();
     state.nazioniGlobal.forEach(n => state.nationMap.set(n._id, n));
 
-    // Blocchi e NAP
     await loadExternalBlocs();
     await loadExternalNaps();
 
@@ -37,10 +37,9 @@ async function refreshData() {
       .sort((a, b) => a.name.localeCompare(b.name))
       .forEach(n => datalist.appendChild(new Option(n.name)));
 
-    // Setup layers mappa
     await setupMapLayers();
 
-    // Color map base nazioni
+    // Color map base
     state.nationBaseColorMap.clear();
     state.labelsData.forEach(label => {
       if (label.properties?.countryId) state.nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor);
@@ -49,7 +48,6 @@ async function refreshData() {
       if (!state.nationBaseColorMap.has(n._id)) state.nationBaseColorMap.set(n._id, n.color || hashColor(n._id));
     });
 
-    // Label originali
     buildOriginalLabels();
     state.originalLabelsData.forEach(l => {
       const c = l.properties?.countryCode?.toLowerCase();
@@ -78,12 +76,12 @@ function setupEventListeners() {
   document.getElementById('napInput').addEventListener('keypress', e => { if (e.key === 'Enter') aggiungiNap(); });
   document.getElementById('addNapBtn').addEventListener('click', aggiungiNap);
 
-  // Toggle borders (Actual / Original)
+  // Toggle borders
   document.getElementById('toggle-borders').addEventListener('change', function () {
     setMapSource(this.checked);
   });
 
-  // Modalità colorazione
+  // Mode buttons
   document.getElementById('mode-diplomacy').addEventListener('click', () => setColoringMode('diplomacy'));
   document.getElementById('mode-blocs').addEventListener('click',     () => setColoringMode('blocs'));
 
@@ -92,7 +90,7 @@ function setupEventListeners() {
   document.getElementById('checkLabels').addEventListener('change',              () => { if (state.map) state.map.triggerRepaint(); });
   document.getElementById('checkExcludeExternalNaps').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
 
-  // Toggle sezioni NAP
+  // Collapsible NAP sections
   document.getElementById('manualNapToggle').addEventListener('click',   () => toggleNapSection('manual-nap-section'));
   document.getElementById('externalNapToggle').addEventListener('click', () => toggleNapSection('external-nap-section'));
 
@@ -101,21 +99,34 @@ function setupEventListeners() {
     document.getElementById('dynamic-legend').classList.toggle('hidden');
   });
 
-  // Stats chip (mobile)
+  // Zoom controls
+  document.getElementById('zoomInBtn')?.addEventListener('click',  () => { state.map?.zoomIn();  });
+  document.getElementById('zoomOutBtn')?.addEventListener('click', () => { state.map?.zoomOut(); });
+
+  // Stats chip (mobile): mostra info della nazione selezionata
   document.getElementById('stats-chip').addEventListener('click', () => {
-    const name   = document.getElementById('selected-name-display').textContent || 'No selection';
-    const allies = document.getElementById('stats-allies').textContent;
-    const wars   = document.getElementById('stats-wars').textContent;
-    const naps   = document.getElementById('stats-naps').textContent;
-    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
+    if (state.selectedCountryId) {
+      const nation = state.nationMap.get(state.selectedCountryId);
+      const allies = document.getElementById('stats-allies').textContent;
+      const wars   = document.getElementById('stats-wars').textContent;
+      const naps   = document.getElementById('stats-naps').textContent;
+      showToast(`${nation?.name || 'Nation'} | ${allies} allies · ${wars} wars · ${naps} NAPs`, 'info');
+    } else {
+      showToast('Click a nation on the map to select it', 'info');
+    }
   });
 
   // Hamburger menu
   const hamburgerBtn  = document.getElementById('hamburger-btn');
   const hamburgerMenu = document.getElementById('hamburger-menu');
-  hamburgerBtn.addEventListener('click', () => hamburgerMenu.classList.toggle('visible'));
+  hamburgerBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    hamburgerMenu.classList.toggle('visible');
+  });
   document.addEventListener('click', e => {
-    if (!hamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) hamburgerMenu.classList.remove('visible');
+    if (!hamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) {
+      hamburgerMenu.classList.remove('visible');
+    }
   });
 }
 
