@@ -3,7 +3,9 @@
 Mappa diplomatica interattiva per WarEra.io — visualizza alleanze, guerre, NAP e blocchi di alleanza.
 https://francescoparadiso.github.io/warera-tactical-diplomacy-os/
 
+
 ---
+
 
 ## Struttura file
 
