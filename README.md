@@ -3,40 +3,6 @@
 Mappa diplomatica interattiva per WarEra.io — visualizza alleanze, guerre, NAP e blocchi di alleanza.
 https://francescoparadiso.github.io/warera-tactical-diplomacy-os/
 
-## Setup iniziale (una sola volta)
-
-### 1. Clona il repo in locale
-```bash
-git clone https://github.com/francescoparadiso/warera-tactical-diplomacy-os.git
-cd warera-tactical-diplomacy-os
-npm install
-```
-
-### 2. Avvia in locale per testare
-```bash
-npm run dev
-```
-Apri http://localhost:5173 nel browser.
-
-### 3. Configura GitHub Pages
-Nel tuo repo su GitHub:
-- Vai su **Settings → Pages**
-- In "Source" seleziona **"Deploy from a branch"**
-- Branch: **`gh-pages`**, cartella: **`/ (root)`**
-- Salva
-
-### 4. Abilita le Actions
-Vai su **Settings → Actions → General** e assicurati che i workflow abbiano il permesso di scrivere nel repo (spunta "Read and write permissions").
-
-### 5. Fai il primo push
-```bash
-git add .
-git commit -m "Migrazione a Vite"
-git push origin main
-```
-
-Il sito si aggiorna automaticamente in ~1 minuto ad ogni push.
-
 ---
 
 ## Struttura file
@@ -60,14 +26,4 @@ Il sito si aggiorna automaticamente in ~1 minuto ad ogni push.
 └── .github/
     └── workflows/
         └── deploy.yml
-```
-
-## ⚠️ Nota importante su vite.config.js
-
-Assicurati che `base` corrisponda al nome ESATTO del tuo repository:
-
-```js
-export default {
-  base: '/warera-tactical-diplomacy-os/',
-}
 ```
