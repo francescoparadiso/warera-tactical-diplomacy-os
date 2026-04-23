@@ -1,1841 +1,324 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>WarEra Diplomacy OS - MapLibre</title>
-    <!--Umami analytics-->
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="9027ca13-bcf7-41c6-b626-9e7e25e3c4fa"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>WarEra Diplomacy OS - MapLibre</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-    <style>
-        /* ===== STILI ORIGINALI (INVARIATI) ===== */
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: #000;
-            color: white;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            overflow: hidden;
-        }
-        #map {
-            height: 100vh;
-            width: 100vw;
-        }
-        
-        /* Loading */
-        #loading-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.92);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.3s;
-        }
-        .loader { text-align: center; color: #00d4ff; }
-        .loader-spinner {
-            width: 50px; height: 50px;
-            border: 3px solid #333;
-            border-top-color: #00d4ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+  <!-- Umami analytics -->
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="9027ca13-bcf7-41c6-b626-9e7e25e3c4fa"></script>
 
-        /* Toast */
-        #toast-container {
-            position: fixed;
-            bottom: 110px; right: 20px;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .toast {
-            background: rgba(20,20,20,0.95);
-            border-left: 4px solid #00d4ff;
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            animation: slideIn 0.3s ease;
-            max-width: 300px;
-        }
-        .toast.error { border-left-color: #ff4747; }
-        .toast.success { border-left-color: #2ecc71; }
-@keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-        /* Overlay e pannelli */
-        .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
-        .panel {
-            background: rgba(10,10,10,0.95);
-            border: 1px solid #333;
-            padding: 16px;
-            border-radius: 12px;
-            pointer-events: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px);
-        }
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 
-        /* Legenda */
-        #legend-container { bottom: 30px; left: 20px; }
-        #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #000;
+      color: white;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+    #map { height: 100vh; width: 100vw; }
 
-        .stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stat-item { display: flex; flex-direction: column; align-items: center; }
-        .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
+    /* Loading */
+    #loading-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.92); z-index: 9999;
+      display: flex; align-items: center; justify-content: center; transition: opacity 0.3s;
+    }
+    .loader { text-align: center; color: #00d4ff; }
+    .loader-spinner {
+      width: 50px; height: 50px;
+      border: 3px solid #333; border-top-color: #00d4ff;
+      border-radius: 50%; animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-        #stats-chip {
-            display: none;
-            background: rgba(10,10,10,0.95);
-            border: 1px solid #333;
-            border-radius: 30px;
-            padding: 8px 16px;
-            backdrop-filter: blur(10px);
-            pointer-events: auto;
-            cursor: pointer;
-        }
-        .stats-chip-content { display: flex; gap: 20px; font-size: 12px; }
-        .stats-chip-item { display: flex; align-items: center; gap: 6px; }
-        .stats-chip-value { color: #00d4ff; font-weight: bold; }
+    /* Toast */
+    #toast-container {
+      position: fixed; bottom: 110px; right: 20px; z-index: 10000;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      background: rgba(20,20,20,0.95); border-left: 4px solid #00d4ff;
+      padding: 12px 20px; border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5); animation: slideIn 0.3s ease; max-width: 300px;
+    }
+    .toast.error { border-left-color: #ff4747; }
+    .toast.success { border-left-color: #2ecc71; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-        /* Hamburger menu */
-        #hamburger-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 2000;
-            width: 48px;
-            height: 48px;
-            background: rgba(10,10,10,0.95);
-            border: 1px solid #00d4ff;
-            color: #00d4ff;
-            border-radius: 12px;
-            font-size: 24px;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
+    /* Overlay e pannelli */
+    .overlay { position: absolute; z-index: 1000; pointer-events: none; width: auto; }
+    .panel {
+      background: rgba(10,10,10,0.95); border: 1px solid #333;
+      padding: 16px; border-radius: 12px; pointer-events: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+    }
 
-        #hamburger-menu {
-            position: fixed;
-            top: 80px;
-            left: 20px;
-            z-index: 1999;
-            background: rgba(10,10,10,0.95);
-            border: 1px solid #333;
-            border-radius: 16px;
-            padding: 16px;
-            backdrop-filter: blur(10px);
-            width: 320px;
-            max-width: calc(100vw - 40px);
-            max-height: calc(100vh - 100px);
-            overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-            display: none;
-            flex-direction: column;
-            gap: 16px;
-            pointer-events: auto;
-        }
+    /* Legenda */
+    #legend-container { bottom: 30px; left: 20px; }
+    #stats-bar { bottom: 30px; right: 20px; pointer-events: none; }
+    .stats-content { display: flex; gap: 15px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-item { display: flex; flex-direction: column; align-items: center; }
+    .stat-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
 
-        #hamburger-menu.visible {
-            display: flex;
-        }
+    #stats-chip {
+      display: none; background: rgba(10,10,10,0.95); border: 1px solid #333;
+      border-radius: 30px; padding: 8px 16px; backdrop-filter: blur(10px);
+      pointer-events: auto; cursor: pointer;
+    }
+    .stats-chip-content { display: flex; gap: 20px; font-size: 12px; }
+    .stats-chip-item { display: flex; align-items: center; gap: 6px; }
+    .stats-chip-value { color: #00d4ff; font-weight: bold; }
 
-        .menu-section {
-            border-bottom: 1px solid #333;
-            padding-bottom: 12px;
-            margin-bottom: 8px;
-        }
-        .menu-section:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-        .section-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .section-title strong {
-            font-size: 12px;
-            color: #00d4ff;
-            letter-spacing: 0.5px;
-        }
-        .badge {
-            background: #00d4ff;
-            color: #000;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: bold;
-        }
+    /* Hamburger */
+    #hamburger-btn {
+      position: fixed; top: 20px; left: 20px; z-index: 2000;
+      width: 48px; height: 48px; background: rgba(10,10,10,0.95);
+      border: 1px solid #00d4ff; color: #00d4ff; border-radius: 12px;
+      font-size: 24px; cursor: pointer; backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    #hamburger-menu {
+      position: fixed; top: 80px; left: 20px; z-index: 1999;
+      background: rgba(10,10,10,0.95); border: 1px solid #333;
+      border-radius: 16px; padding: 16px; backdrop-filter: blur(10px);
+      width: 320px; max-width: calc(100vw - 40px);
+      max-height: calc(100vh - 100px); overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+      display: none; flex-direction: column; gap: 16px; pointer-events: auto;
+    }
+    #hamburger-menu.visible { display: flex; }
+    .menu-section { border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 8px; }
+    .menu-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .section-title strong { font-size: 12px; color: #00d4ff; letter-spacing: 0.5px; }
+    .badge { background: #00d4ff; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
 
-        /* Switch */
-        .switch-container {
-            display: flex; align-items: center; justify-content: space-between; gap: 10px;
-            cursor: pointer; padding: 6px 0;
-        }
-        .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-.switch input {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-    z-index: 2;
-    margin: 0;
-}        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 18px; width: 18px;
-            left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%;
-        }
-        input:checked + .slider { background: linear-gradient(135deg, #0062ff, #00d4ff); border-color: #00d4ff; }
-        input:checked + .slider:before { transform: translateX(20px); }
+    /* Switch */
+    .switch-container { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; padding: 6px 0; }
+    .switch-label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; margin: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .3s; border-radius: 34px; border: 1px solid #444; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background: linear-gradient(135deg, #0062ff, #00d4ff); border-color: #00d4ff; }
+    input:checked + .slider:before { transform: translateX(20px); }
 
-        /* Bottoni toggle per modalità colorazione */
-        .mode-toggle-group {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .mode-btn {
-            flex: 1;
-            padding: 8px 4px;
-            background: #1a1a1a;
-            border: 1px solid #444;
-            color: #aaa;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
-        }
-        .mode-btn.active {
-            background: #00d4ff;
-            color: #000;
-            border-color: #00d4ff;
-        }
+    /* Mode toggle */
+    .mode-toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    .mode-btn { flex: 1; padding: 8px 4px; background: #1a1a1a; border: 1px solid #444; color: #aaa; border-radius: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: all 0.2s; text-align: center; }
+    .mode-btn.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
 
-        /* Legenda e toggle */
-        .legend-content {
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            transform-origin: bottom left;
-            margin-bottom: 12px;
-            min-width: 200px;
-        }
-        .legend-content.hidden {
-            opacity: 0; transform: scale(0.9) translateY(10px);
-            pointer-events: none; display: none;
-        }
-        .legend-item { display: flex; align-items: center; gap: 12px; font-size: 11px; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
-        .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }
+    /* Legenda */
+    .legend-content { transition: opacity 0.3s ease, transform 0.3s ease; transform-origin: bottom left; margin-bottom: 12px; min-width: 200px; }
+    .legend-content.hidden { opacity: 0; transform: scale(0.9) translateY(10px); pointer-events: none; display: none; }
+    .legend-item { display: flex; align-items: center; gap: 12px; font-size: 11px; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+    .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }
+    .toggle-btn {
+      width: 44px; height: 44px; background: rgba(20,20,20,0.95);
+      border: 1px solid #444; color: #00d4ff; border-radius: 50%;
+      cursor: pointer; font-size: 20px; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: auto; backdrop-filter: blur(10px); transition: all 0.2s;
+    }
+    .toggle-btn:hover { background: #2a2a2a; border-color: #00d4ff; }
 
-        .toggle-btn {
-            width: 44px; height: 44px;
-            background: rgba(20,20,20,0.95);
-            border: 1px solid #444; color: #00d4ff; border-radius: 50%;
-            cursor: pointer; font-size: 20px; font-weight: bold;
-            display: flex; align-items: center; justify-content: center;
-            pointer-events: auto; backdrop-filter: blur(10px); transition: all 0.2s;
-        }
-        .toggle-btn:hover { background: #2a2a2a; border-color: #00d4ff; }
+    input[type="text"], button, select {
+      background: #1a1a1a; border: 1px solid #444; color: white;
+      padding: 10px 12px; border-radius: 8px; font-size: 13px;
+      width: 100%; box-sizing: border-box; transition: all 0.2s;
+    }
+    select { cursor: pointer; margin-bottom: 12px; }
+    input[type="text"]:focus, select:focus { outline: none; border-color: #00d4ff; background: #222; }
+    button {
+      cursor: pointer; background: linear-gradient(135deg, #0062ff, #0088ff);
+      border: none; font-weight: 600; margin-top: 6px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,98,255,0.3); }
+    button:active { transform: translateY(0); }
+    .btn-reset { background: #333; }
+    .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
 
-        input[type="text"], button, select {
-            background: #1a1a1a; border: 1px solid #444; color: white;
-            padding: 10px 12px; border-radius: 8px; font-size: 13px;
-            width: 100%; box-sizing: border-box; transition: all 0.2s;
-        }
-        select { cursor: pointer; margin-bottom: 12px; }
-        input[type="text"]:focus, select:focus { outline: none; border-color: #00d4ff; background: #222; }
-        button {
-            cursor: pointer; background: linear-gradient(135deg, #0062ff, #0088ff);
-            border: none; font-weight: 600; margin-top: 6px;
-            text-transform: uppercase; letter-spacing: 0.5px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,98,255,0.3); }
-        button:active { transform: translateY(0); }
-        .btn-reset { background: #333; }
-        .btn-reset:hover { box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
+    /* Popup */
+    .maplibregl-popup-content { background: rgba(10,10,10,0.95) !important; color: white !important; border: 1px solid #333 !important; border-radius: 8px !important; padding: 10px 14px !important; font-size: 13px !important; }
+    .maplibregl-popup-tip { border-top-color: #333 !important; }
 
-        /* Popup */
-        .maplibregl-popup-content {
-            background: rgba(10,10,10,0.95) !important;
-            color: white !important;
-            border: 1px solid #333 !important;
-            border-radius: 8px !important;
-            padding: 10px 14px !important;
-            font-size: 13px !important;
-        }
-        .maplibregl-popup-tip { border-top-color: #333 !important; }
+    .nap-item { display: flex; justify-content: space-between; align-items: center; background: #1a1a1a; padding: 10px 14px; margin-top: 8px; border-left: 4px solid #00d4ff; border-radius: 6px; font-size: 13px; }
+    .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0 4px; transition: transform 0.2s; }
+    .remove-nap:hover { transform: scale(1.2); }
 
-        .nap-item {
-            display: flex; justify-content: space-between; align-items: center;
-            background: #1a1a1a; padding: 10px 14px; margin-top: 8px;
-            border-left: 4px solid #00d4ff; border-radius: 6px; font-size: 13px;
-        }
-        .remove-nap { color: #ff4747; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0 4px; transition: transform 0.2s; }
-        .remove-nap:hover { transform: scale(1.2); }
+    .search-container { display: flex; gap: 8px; }
+    .search-container button { margin-top: 0; width: auto; padding: 10px 16px; }
+    .nap-input-container { display: flex; gap: 8px; }
+    .nap-input-container input { flex: 1; }
+    .nap-input-container button { margin-top: 0; width: 80px; background: #00d4ff; color: #000; }
 
-        .search-container { display: flex; gap: 8px; }
-        .search-container button { margin-top: 0; width: auto; padding: 10px 16px; }
-        .nap-input-container { display: flex; gap: 8px; }
-        .nap-input-container input { flex: 1; }
-        .nap-input-container button { margin-top: 0; width: 80px; background: #00d4ff; color: #000; }
+    #napList, #externalNapList { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+    #napList::-webkit-scrollbar, #externalNapList::-webkit-scrollbar { width: 6px; }
+    #napList::-webkit-scrollbar-track, #externalNapList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
+    #napList::-webkit-scrollbar-thumb, #externalNapList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        #napList, #externalNapList { max-height: 200px; overflow-y: auto; margin-top: 8px; }
-        #napList::-webkit-scrollbar, #externalNapList::-webkit-scrollbar { width: 6px; }
-        #napList::-webkit-scrollbar-track, #externalNapList::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
-        #napList::-webkit-scrollbar-thumb, #externalNapList::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    .selected-info { background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2); }
+    .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
 
-        .empty-state { color: #666; text-align: center; padding: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Nascondi controlli nativi MapLibre */
+    .maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none !important; }
 
-        .selected-info {
-            background: rgba(0,212,255,0.1); border-radius: 6px; padding: 8px 12px;
-            margin-bottom: 12px; border: 1px solid rgba(0,212,255,0.2);
-        }
-        .selected-name { color: #00d4ff; font-weight: bold; font-size: 14px; }
+    /* Mobile */
+    @media (max-width: 768px) {
+      #legend-container { bottom: 10px; left: 10px; width: auto; }
+      #stats-bar { display: none; }
+      #stats-chip { display: block; position: fixed; bottom: 20px; right: 20px; z-index: 1001; }
+      .panel { padding: 12px; }
+      #hamburger-menu { width: calc(100vw - 40px); max-height: 70vh; }
+    }
 
-        /* Nascondi controlli nativi MapLibre (incluso zoom +/-) */
-        .maplibregl-ctrl-top-right { display: none !important; }
-        .maplibregl-ctrl-bottom-left,
-        .maplibregl-ctrl-bottom-right { display: none !important; }
+    #top-left, #top-right, #floating-controls { display: none !important; }
 
-        /* Mobile */
-        @media (max-width: 768px) {
-            #legend-container { bottom: 10px; left: 10px; width: auto; }
-            #stats-bar { display: none; }
-            #stats-chip { display: block; position: fixed; bottom: 20px; right: 20px; z-index: 1001; }
-            .panel { padding: 12px; }
-            #hamburger-menu { width: calc(100vw - 40px); max-height: 70vh; }
-        }
-
-        /* Nascondi vecchi pannelli */
-        #top-left, #top-right, #floating-controls { display: none !important; }
-        #manual-nap-section, #external-nap-section {
-    transition: max-height 0.3s ease;
-}
-/* Evidenziazione per etichette del toggle borders */
-.border-label {
-    transition: color 0.2s, font-weight 0.2s;
-}
-.border-label.active {
-    color: #00d4ff !important;
-    font-weight: 700;
-}
-/* Container toggle borders in alto a destra */
-#border-toggle-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1500;
-    background: rgba(10, 10, 10, 0.6); /* semi-trasparente */
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(0, 212, 255, 0.3);
-    border-radius: 40px;
-    padding: 8px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    pointer-events: auto;
-}
-
-#border-toggle-container .switch-label {
-    font-size: 11px;
-    color: #ccc;
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    transition: color 0.2s;
-    cursor: default;
-}
-
-#border-toggle-container .border-label.active {
-    color: #00d4ff !important;
-    font-weight: 700;
-}
-    </style>
+    /* Toggle borders in alto a destra */
+    #border-toggle-container {
+      position: fixed; top: 20px; right: 20px; z-index: 1500;
+      background: rgba(10,10,10,0.6); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,212,255,0.3); border-radius: 40px;
+      padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: auto;
+    }
+    #border-toggle-container .switch-label { font-size: 11px; color: #ccc; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; transition: color 0.2s; cursor: default; }
+    .border-label { transition: color 0.2s, font-weight 0.2s; }
+    .border-label.active { color: #00d4ff !important; font-weight: 700; }
+  </style>
 </head>
 <body>
-<!-- TOGGLE BORDERS IN ALTO A DESTRA -->
-<div id="border-toggle-container">
+  <!-- TOGGLE BORDERS IN ALTO A DESTRA -->
+  <div id="border-toggle-container">
     <span id="label-actual" class="switch-label border-label active">🗺️ Current</span>
     <div class="switch">
-<input type="checkbox" id="toggle-borders">
-        <span class="slider"></span>
+      <input type="checkbox" id="toggle-borders" />
+      <span class="slider"></span>
     </div>
     <span id="label-original" class="switch-label border-label">Original</span>
-</div>
-<!-- LOADING OVERLAY -->
-<div id="loading-overlay">
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading-overlay">
     <div class="loader">
-        <div class="loader-spinner"></div>
-        <div>Loading Strategic Data...</div>
+      <div class="loader-spinner"></div>
+      <div>Loading Strategic Data...</div>
     </div>
-</div>
+  </div>
 
-<!-- TOAST CONTAINER -->
-<div id="toast-container"></div>
+  <!-- TOAST -->
+  <div id="toast-container"></div>
 
-<!-- DATALIST PER AUTOCOMPLETAMENTO -->
-<datalist id="nazioniList"></datalist>
+  <!-- DATALIST -->
+  <datalist id="nazioniList"></datalist>
 
-<!-- ===== HAMBURGER MENU UNIFICATO (MODIFICATO) ===== -->
-<button id="hamburger-btn">☰</button>
-<div id="hamburger-menu">
-    <!-- Sezione: Mappa e Visualizzazione -->
+  <!-- HAMBURGER -->
+  <button id="hamburger-btn">☰</button>
+  <div id="hamburger-menu">
     <div class="menu-section">
-        <div class="section-title">
-            <strong>🗺️ MAPPA</strong>
-        </div>
-
-        <!-- Bottoni affiancati per Diplomacy / Alliance Blocs -->
-        <div class="mode-toggle-group">
-            <div id="mode-diplomacy" class="mode-btn active" onclick="setColoringMode('diplomacy')">⚔️ Diplomacy</div>
-            <div id="mode-blocs" class="mode-btn" onclick="setColoringMode('blocs')">🏛️ Alliance Blocs</div>
-        </div>
-
-        <!-- Toggles raggruppati (Extended, Show Names, Exclude External NAPs) -->
-        <label class="switch-container">
-            <span class="switch-label">🌐 Extended Diplomacy</span>
-            <div class="switch">
-                <input type="checkbox" id="checkExtended" onchange="renderMap()">
-                <span class="slider"></span>
-            </div>
-        </label>
-        <label class="switch-container">
-            <span class="switch-label">🏷️ Show Nation Names</span>
-            <div class="switch">
-                <input type="checkbox" id="checkLabels" checked onchange="toggleLabels()">
-                <span class="slider"></span>
-            </div>
-        </label>
-        <label class="switch-container">
-            <span class="switch-label">🚫 Exclude external NAPs</span>
-            <div class="switch">
-                <input type="checkbox" id="checkExcludeExternalNaps" onchange="renderMap()">
-                <span class="slider"></span>
-            </div>
-        </label>
+      <div class="section-title"><strong>🗺️ MAPPA</strong></div>
+      <div class="mode-toggle-group">
+        <div id="mode-diplomacy" class="mode-btn active">⚔️ Diplomacy</div>
+        <div id="mode-blocs" class="mode-btn">🏛️ Alliance Blocs</div>
+      </div>
+      <label class="switch-container">
+        <span class="switch-label">🌐 Extended Diplomacy</span>
+        <div class="switch"><input type="checkbox" id="checkExtended" /><span class="slider"></span></div>
+      </label>
+      <label class="switch-container">
+        <span class="switch-label">🏷️ Show Nation Names</span>
+        <div class="switch"><input type="checkbox" id="checkLabels" checked /><span class="slider"></span></div>
+      </label>
+      <label class="switch-container">
+        <span class="switch-label">🚫 Exclude external NAPs</span>
+        <div class="switch"><input type="checkbox" id="checkExcludeExternalNaps" /><span class="slider"></span></div>
+      </label>
     </div>
 
-    <!-- Sezione: Nazione selezionata e ricerca -->
     <div class="menu-section">
-        <div id="selected-display" class="selected-info" style="display: none;">
-            <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">SELECTED NATION</div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span id="flag-wrapper"></span>
-                <span class="selected-name" id="selected-name-display"></span>
-            </div>
+      <div id="selected-display" class="selected-info" style="display:none;">
+        <div style="font-size:11px;color:#aaa;margin-bottom:4px;">SELECTED NATION</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="flag-wrapper"></span>
+          <span class="selected-name" id="selected-name-display"></span>
         </div>
-        <div class="search-container">
-            <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off">
-            <button onclick="cercaNazione()">🔍</button>
-            <button class="btn-reset" onclick="resetDiplomazia()">↻</button>
-        </div>
+      </div>
+      <div class="search-container">
+        <input type="text" id="cercaInput" list="nazioniList" placeholder="Search nation..." autocomplete="off" />
+        <button id="searchBtn">🔍</button>
+        <button class="btn-reset" id="resetBtn">↻</button>
+      </div>
     </div>
 
-    <!-- Sezione: NAP Manuali (divisa in due sottosezioni) -->
     <div class="menu-section">
-        <div class="section-title">
-            <strong>🤝 MANUAL NAP</strong>
-            <span class="badge" id="nap-count">0</span>
+      <div class="section-title">
+        <strong>🤝 MANUAL NAP</strong>
+        <span class="badge" id="nap-count">0</span>
+      </div>
+      <div class="nap-input-container">
+        <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off" />
+        <button id="addNapBtn">ADD</button>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="section-title" style="cursor:pointer;" id="manualNapToggle">
+          <strong style="font-size:11px;color:#aaa;">📝 Current manual NAPs</strong>
+          <span id="manual-nap-icon" style="margin-left:auto;">▶</span>
         </div>
-        <!-- Input per aggiungere NAP -->
-        <div class="nap-input-container">
-            <input type="text" id="napInput" list="nazioniList" placeholder="Add NAP..." autocomplete="off">
-            <button onclick="aggiungiNap()">ADD</button>
+        <div id="manual-nap-section" style="max-height:0;overflow-y:auto;">
+          <div id="napList"><div class="empty-state">No manual NAPs set</div></div>
         </div>
-        <!-- Lista NAP manuali (collassabile) -->
-        <div style="margin-top: 12px;">
-            <div class="section-title" style="cursor: pointer;" onclick="toggleNapSection('manual-nap-section')">
-                <strong style="font-size: 11px; color: #aaa;">📝 Current manual NAPs</strong>
-                <span id="manual-nap-icon" style="margin-left: auto;">▶</span>
-            </div>
-            <div id="manual-nap-section" style="max-height: 0; overflow-y: auto;">
-                <div id="napList">
-                    <div class="empty-state">No manual NAPs set</div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <!-- Sezione: NAP Esterni (read-only) -->
     <div class="menu-section">
-        <div class="section-title" style="cursor: pointer;" onclick="toggleNapSection('external-nap-section')">
-            <strong style="font-size: 11px; color: #aaa;">📄 External NAPs (read-only)</strong>
-            <span id="external-nap-icon" style="margin-left: auto;">▶</span>
-        </div>
-        <div id="external-nap-section" style="max-height: 0; overflow-y: auto;">
-            <div id="externalNapList">
-                <div class="empty-state">No external NAPs loaded</div>
-            </div>
-        </div>
+      <div class="section-title" style="cursor:pointer;" id="externalNapToggle">
+        <strong style="font-size:11px;color:#aaa;">📄 External NAPs (read-only)</strong>
+        <span id="external-nap-icon" style="margin-left:auto;">▶</span>
+      </div>
+      <div id="external-nap-section" style="max-height:0;overflow-y:auto;">
+        <div id="externalNapList"><div class="empty-state">No external NAPs loaded</div></div>
+      </div>
     </div>
-</div>
+  </div>
 
-<!-- LEGEND -->
-<div id="legend-container" class="overlay">
+  <!-- LEGEND -->
+  <div id="legend-container" class="overlay">
     <div id="dynamic-legend" class="panel legend-content hidden"></div>
-    <div class="toggle-btn" onclick="toggleLegend()">ℹ️</div>
-</div>
+    <div class="toggle-btn" id="legendToggleBtn">ℹ️</div>
+  </div>
 
-<!-- STATS BAR (desktop) -->
-<div id="stats-bar" class="overlay">
+  <!-- STATS BAR (desktop) -->
+  <div id="stats-bar" class="overlay">
     <div class="panel">
-        <div class="stats-content">
-            <div class="stat-item"><span>ALLIES</span><span class="stat-value" id="stats-allies">0</span></div>
-            <div class="stat-item"><span>WARS</span><span class="stat-value" id="stats-wars">0</span></div>
-            <div class="stat-item"><span>NAPS</span><span class="stat-value" id="stats-naps">0</span></div>
-        </div>
+      <div class="stats-content">
+        <div class="stat-item"><span>ALLIES</span><span class="stat-value" id="stats-allies">0</span></div>
+        <div class="stat-item"><span>WARS</span><span class="stat-value" id="stats-wars">0</span></div>
+        <div class="stat-item"><span>NAPS</span><span class="stat-value" id="stats-naps">0</span></div>
+      </div>
     </div>
-</div>
+  </div>
 
-<!-- MOBILE STATS CHIP -->
-<div id="stats-chip" onclick="toggleStatsDetails()">
+  <!-- MOBILE STATS CHIP -->
+  <div id="stats-chip" id="statsChip">
     <div class="stats-chip-content">
-        <div class="stats-chip-item">🤝 <span class="stats-chip-value" id="chip-allies">0</span></div>
-        <div class="stats-chip-item">⚔️ <span class="stats-chip-value" id="chip-wars">0</span></div>
-        <div class="stats-chip-item">🕊️ <span class="stats-chip-value" id="chip-naps">0</span></div>
+      <div class="stats-chip-item">🤝 <span class="stats-chip-value" id="chip-allies">0</span></div>
+      <div class="stats-chip-item">⚔️ <span class="stats-chip-value" id="chip-wars">0</span></div>
+      <div class="stats-chip-item">🕊️ <span class="stats-chip-value" id="chip-naps">0</span></div>
     </div>
-</div>
+  </div>
 
-<div id="map"></div>
+  <div id="map"></div>
 
-<script>
-// ============================================================
-// GLOBAL STATE (INVARIATO)
-// ============================================================
-let map;
-let nazioniGlobal = [];
-let mapDataGlobal = null;
-let selectedCountryId = null;
-let customNaps = [];
-let nationBaseColorMap = new Map();
-let externalBlocsInfo = [];
-let externalNapsList = [];
-let externalNapsSet = new Set();
-const nationMap = new Map();
-const multiBlocMap = new Map();
-
-let baseGeoJSON = null;
-let originalLabelsData = [];
-let labelsData = [];
-let mapSource = 'actual';
-let coloringMode = 'diplomacy';
-
-const COLORS = {
-    SELECTED:         "#ffcc00",
-    WAR_DIRECT:       "#ff0000",
-    WAR_INDIRECT:     "#b30000",
-    ALLY_DIRECT:      "#2ecc71",
-    ALLY_INDIRECT:    "#145a32",
-    BORDERLINE:       "#ff9100",
-    NAP:              "#00d4ff",
-    DEFAULT_LAND:     "#4a4e5a",
-    NEUTRAL_UNSELECTED:"#3a3d46",
-    OCEAN:            "#000000",
-    ITALIAN_BLOC:     "#1b557a",
-    WESTERN_BLOC:     "#55a5d9",
-    AFRICAN_UNION:    "#e67e22",
-    ASIAN_FEDERATION: "#8e44ad",
-    ICDP:             "#c0392b",
-    HOLY_LEAGUE:      "#FFD700"
-};
-
-const SRC_REGIONS = 'regions-src';
-const SRC_BORDERS = 'borders-src';
-const SRC_LABELS  = 'labels-src';
-const LYR_FILL    = 'regions-fill';
-const LYR_OUTLINE = 'regions-outline';
-const LYR_COAST   = 'regions-coast';
-const LYR_BORDER  = 'borders-line';
-const LYR_MULTI_BLOC = 'multi-bloc-pattern';
-
-const EXTERNAL_BLOCS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
-const EXTERNAL_NAPS_URL = 'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/warera_naps.csv';
-
-const blocColorMap = new Map();
-
-// ============================================================
-// FUNZIONI DI UTILITÀ (INVARIATE)
-// ============================================================
-function parseCSV(csvText) {
-    const rows = [];
-    const lines = csvText.trim().split(/\r?\n/);
-    if (lines.length < 2) return rows;
-    function parseLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim());
-        return result;
-    }
-    const headers = parseLine(lines[0]);
-    for (let i = 1; i < lines.length; i++) {
-        const values = parseLine(lines[i]);
-        if (values.length === headers.length) {
-            const row = {};
-            headers.forEach((header, idx) => { row[header] = values[idx]; });
-            rows.push(row);
-        }
-    }
-    return rows;
-}
-
-function parseNapsCSV(csvText) {
-    const rows = [];
-    const lines = csvText.trim().split(/\r?\n/);
-    if (lines.length < 2) return rows;
-    function parseLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim());
-        return result;
-    }
-    const headers = parseLine(lines[0]);
-    for (let i = 1; i < lines.length; i++) {
-        const values = parseLine(lines[i]);
-        if (values.length === headers.length) {
-            const row = {};
-            headers.forEach((header, idx) => { row[header] = values[idx]; });
-            rows.push(row);
-        }
-    }
-    return rows;
-}
-
-async function loadExternalNaps() {
-    try {
-        const cacheBuster = `?t=${Date.now()}`;
-        const response = await fetch(EXTERNAL_NAPS_URL + cacheBuster);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const csvText = await response.text();
-        const napsData = parseNapsCSV(csvText);
-        externalNapsList = [];
-        externalNapsSet.clear();
-        for (const row of napsData) {
-            const nationACode = row.nazione_A?.trim().toUpperCase();
-            const napConStr = row.nap_con?.trim();
-            if (!nationACode || !napConStr) continue;
-            const countryA = nazioniGlobal.find(n => n.code?.toUpperCase() === nationACode);
-            if (!countryA) continue;
-            const targets = napConStr.split(',').map(c => c.trim().toUpperCase());
-            for (const targetCode of targets) {
-                const countryB = nazioniGlobal.find(n => n.code?.toUpperCase() === targetCode);
-                if (countryB) {
-                    const idA = countryA._id;
-                    const idB = countryB._id;
-                    const key = `${idA}-${idB}`;
-                    const revKey = `${idB}-${idA}`;
-                    if (!externalNapsSet.has(key) && !externalNapsSet.has(revKey)) {
-                        externalNapsSet.add(key);
-                        externalNapsList.push({ fromId: idA, toId: idB, fromName: countryA.name, toName: countryB.name });
-                    }
-                }
-            }
-        }
-        updateExternalNapsUI();
-        renderMap();
-        showToast(`${externalNapsList.length} external NAPs loaded`, 'success');
-    } catch (error) {
-        console.error('Errore NAP esterni:', error);
-        showToast('External NAPs unavailable.', 'warning');
-    }
-}
-
-async function loadExternalBlocs() {
-    try {
-        showLoading();
-        const cacheBuster = `?t=${new Date().getTime()}`;
-        const response = await fetch(EXTERNAL_BLOCS_URL + cacheBuster);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const csvText = await response.text();
-        const blocsData = parseCSV(csvText);
-        buildBlocMapFromData(blocsData);
-        updateDynamicLegend();
-        if (coloringMode === 'blocs') renderMap();
-        showToast('Alliance blocs loaded successfully!', 'success');
-    } catch (error) {
-        console.error('Errore blocchi esterni:', error);
-        showToast('External blocs unavailable.', 'warning');
-    } finally {
-        hideLoading();
-    }
-}
-
-function getHardcodedBlocsData() {
-    return [
-        { nome_blocco: "Olive Union", codici_nazioni: "IT,HR,HU,GR,TR,IQ,EG,LT", colore: COLORS.ITALIAN_BLOC, label_lng: "30", label_lat: "40" },
-        { nome_blocco: "test", codici_nazioni: "FR,NL,BE,AR,CL,US", colore: COLORS.WESTERN_BLOC, label_lng: "-70", label_lat: "30" },
-        { nome_blocco: "African Union", codici_nazioni: "AO,DZ,BJ,BW,BF,BI,CM,CV,CF,KM,CD,DJ,EG,GQ,ET,GA,GM,GH,GN,GW,CI,KE,LS,LR,LY,MW,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SS,SD,SZ,TZ,TG,TN,UG,ZM,ZW", colore: COLORS.AFRICAN_UNION, label_lng: "-10", label_lat: "-20" },
-        { nome_blocco: "Asian Federation", codici_nazioni: "BT,BN,CN,TL,EG,FJ,IN,IQ,PS,PG,PH,TR,KP,VN,VU", colore: COLORS.ASIAN_FEDERATION, label_lng: "90", label_lat: "-15" },
-        { nome_blocco: "ICDP", codici_nazioni: "RO,DE,UA,RS", colore: COLORS.ICDP, label_lng: "20", label_lat: "52" },
-        { nome_blocco: "Holy League", codici_nazioni: "CH,VA,JO,LB,ML,CY", colore: COLORS.HOLY_LEAGUE, label_lng: "35", label_lat: "35" }
-    ];
-}
-
-function buildBlocMapFromData(blocsData) {
-    blocColorMap.clear();
-    multiBlocMap.clear();
-    externalBlocsInfo = [];
-    if (!blocsData || blocsData.length === 0) blocsData = getHardcodedBlocsData();
-    for (const bloc of blocsData) {
-        const blocName = bloc.nome_blocco;
-        const blocColor = bloc.colore;
-        const labelLng = parseFloat(bloc.label_lng);
-        const labelLat = parseFloat(bloc.label_lat);
-        if (!blocColor) continue;
-        externalBlocsInfo.push({
-            name: blocName,
-            color: blocColor,
-            labelLng: isNaN(labelLng) ? null : labelLng,
-            labelLat: isNaN(labelLat) ? null : labelLat
-        });
-        const countryCodes = bloc.codici_nazioni.split(',').map(c => c.trim().toUpperCase());
-        for (const code of countryCodes) {
-            const country = nazioniGlobal.find(n => n.code?.toUpperCase() === code);
-            if (country) {
-                const countryId = country._id;
-                if (blocColorMap.has(countryId)) {
-                    let existingColors = [blocColorMap.get(countryId)];
-                    const existingMulti = multiBlocMap.get(countryId);
-                    if (existingMulti) existingColors = existingMulti.colors;
-                    const newColors = [...existingColors, blocColor];
-                    const patternKey = `stripe-${newColors.join('-')}`;
-                    multiBlocMap.set(countryId, { colors: newColors, patternKey });
-                } else {
-                    blocColorMap.set(countryId, blocColor);
-                }
-            }
-        }
-    }
-}
-
-function getOriginalBordersMesh(topoData) {
-    const cloned = JSON.parse(JSON.stringify(topoData));
-    const regions = cloned.objects.regions;
-    if (regions && regions.geometries) {
-        regions.geometries.forEach(geom => {
-            if (geom.properties && geom.properties.initialCountryId) {
-                geom.properties.countryId = geom.properties.initialCountryId;
-            }
-        });
-    }
-    const mesh = topojson.mesh(cloned, cloned.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
-    return mesh;
-}
-
-function createBlendPattern(colors, seed, sz = 16) {
-    const canvas = document.createElement('canvas');
-    canvas.width = sz;
-    canvas.height = sz;
-    const ctx = canvas.getContext('2d');
-    
-    // Usa il seed per determinare orientamento e spessore in modo univoco
-    const seedNum = typeof seed === 'string' ? parseInt(seed, 36) : Number(seed) || 0;
-    const orientation = Math.abs(seedNum) % 4;          // 0: orizzontale, 1: verticale, 2: diagonale \, 3: diagonale /
-    const stripeWidth = 2 + (Math.abs(seedNum) % 4);    // 2–5 pixel
-    
-    ctx.clearRect(0, 0, sz, sz);
-    
-    // Colore di sfondo (primo colore)
-    ctx.fillStyle = colors[0];
-    ctx.fillRect(0, 0, sz, sz);
-    
-    // Disegna strisce con i colori successivi
-    for (let i = 1; i < colors.length; i++) {
-        ctx.fillStyle = colors[i];
-        const step = colors.length * stripeWidth;
-        
-        switch(orientation) {
-            case 0: // orizzontali
-                for (let y = i * stripeWidth; y < sz; y += step) {
-                    ctx.fillRect(0, y, sz, stripeWidth);
-                }
-                break;
-            case 1: // verticali
-                for (let x = i * stripeWidth; x < sz; x += step) {
-                    ctx.fillRect(x, 0, stripeWidth, sz);
-                }
-                break;
-            case 2: // diagonali \
-                ctx.save();
-                ctx.translate(0, 0);
-                ctx.rotate(Math.PI / 4);
-                const diagStep = step * 1.5;
-                for (let d = -sz; d < sz * 2; d += diagStep) {
-                    ctx.fillRect(d + i * stripeWidth * 1.5, -sz, stripeWidth, sz * 3);
-                }
-                ctx.restore();
-                break;
-            case 3: // diagonali /
-                ctx.save();
-                ctx.translate(sz, 0);
-                ctx.rotate(-Math.PI / 4);
-                for (let d = -sz; d < sz * 2; d += step * 1.5) {
-                    ctx.fillRect(d + i * stripeWidth * 1.5, -sz, stripeWidth, sz * 3);
-                }
-                ctx.restore();
-                break;
-        }
-    }
-    
-    // Bordo nero sottile
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(0, 0, sz, sz);
-    
-    return canvas;
-}
-
-const patternImageCache = new Map();
-
-function preloadPatternImage(patternKey, colors, seed) {
-    return new Promise((resolve) => {
-        if (patternImageCache.has(patternKey)) {
-            resolve(patternImageCache.get(patternKey));
-            return;
-        }
-        const canvas = createBlendPattern(colors, seed, 16);
-        const img = new Image();
-        img.onload = () => {
-            patternImageCache.set(patternKey, img);
-            if (map && !map.hasImage(patternKey)) {
-                map.addImage(patternKey, img);
-            }
-            resolve(img);
-        };
-        img.onerror = () => resolve(null);
-        img.src = canvas.toDataURL();
-    });
-}
-
-async function buildMultiBlocPatternExpression() {
-    const entries = [...multiBlocMap.entries()];
-    if (entries.length === 0) return '';
-    
-    // Precarica tutte le immagini
-    const promises = entries.map(([id, { colors }]) => {
-        const patternKey = `stripe-${id}-${colors.join('-')}`;
-        return preloadPatternImage(patternKey, colors, id);
-    });
-    await Promise.all(promises);
-    
-    const expr = ['match', ['get', 'countryId']];
-    entries.forEach(([id, { colors }]) => {
-        const patternKey = `stripe-${id}-${colors.join('-')}`;
-        expr.push(id, patternKey);
-    });
-    const firstEntry = entries[0];
-    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
-    expr.push(fallbackKey);
-    return expr;
-}
-
-function getMultiBlocPatternExpression() {
-    const entries = [...multiBlocMap.entries()];
-    if (entries.length === 0) return '';
-    const expr = ['match', ['get', 'countryId']];
-    entries.forEach(([id, { colors }]) => {
-        const patternKey = `stripe-${id}-${colors.join('-')}`;
-        expr.push(id, patternKey);
-    });
-    const firstEntry = entries[0];
-    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
-    expr.push(fallbackKey);
-    return expr;
-}
-function getMultiBlocPatternExpressionOriginal() {
-    const entries = [...multiBlocMap.entries()];
-    if (entries.length === 0) return '';
-    const expr = ['match', ['get', 'initialCountryId']];
-    entries.forEach(([id, { colors }]) => {
-        const patternKey = `stripe-${id}-${colors.join('-')}`;
-        expr.push(id, patternKey);
-    });
-    const firstEntry = entries[0];
-    const fallbackKey = `stripe-${firstEntry[0]}-${firstEntry[1].colors.join('-')}`;
-    expr.push(fallbackKey);
-    return expr;
-}
-// createAndAddStripePatterns non serve più
-function createAndAddStripePatterns() {
-    // vuota
-}
-
-// ============================================================
-// TOGGLE NAP SECTION
-// ============================================================
-function toggleNapSection(sectionId) {
-    const section = document.getElementById(sectionId);
-    const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
-    const icon = document.getElementById(iconId);
-    if (!section || !icon) return;
-    if (section.style.maxHeight && section.style.maxHeight !== '0px') {
-        section.style.maxHeight = '0';
-        icon.innerHTML = '▶';
-    } else {
-        section.style.maxHeight = '200px';
-        icon.innerHTML = '▼';
-    }
-}
-
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    container.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
-}
-
-function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
-function hideLoading() { const el = document.getElementById('loading-overlay'); el.style.opacity = '0'; setTimeout(() => el.style.display = 'none', 300); }
-function toggleLegend() { document.getElementById('dynamic-legend').classList.toggle('hidden'); }
-
-// ============================================================
-// DIPLOMACY HELPERS
-// ============================================================
-function getIndirectAllies(targetId) {
-    const target = nationMap.get(targetId);
-    if (!target || !target.allies) return [];
-    const indirect = new Set();
-    target.allies.forEach(allyId => {
-        const ally = nationMap.get(allyId);
-        if (ally && ally.allies) {
-            ally.allies.forEach(id => { if (id !== targetId && !target.allies.includes(id)) indirect.add(id); });
-        }
-    });
-    return Array.from(indirect);
-}
-
-function getEnemyAllies(targetId) {
-    const target = nationMap.get(targetId);
-    if (!target || !target.warsWith) return [];
-    const enemyAllies = new Set();
-    target.warsWith.forEach(enemyId => {
-        const enemy = nationMap.get(enemyId);
-        if (enemy && enemy.allies) {
-            enemy.allies.forEach(id => { if (id !== targetId) enemyAllies.add(id); });
-        }
-    });
-    return Array.from(enemyAllies);
-}
-
-function getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
-    const isManualNap = customNaps.includes(cId);
-    const excludeExternalNaps = document.getElementById('checkExcludeExternalNaps')?.checked || false;
-    let isExternalNap = false;
-    if (!excludeExternalNaps && selectedCountryId) {
-        isExternalNap = externalNapsSet.has(`${selectedCountryId}-${cId}`) || externalNapsSet.has(`${cId}-${selectedCountryId}`);
-    }
-    const isNap = isManualNap || isExternalNap;
-    if (!selectedCountryId) return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
-    if (cId === selectedCountryId) return COLORS.SELECTED;
-    if (isNap) return COLORS.NAP;
-    if (directAllies.includes(cId)) return COLORS.ALLY_DIRECT;
-    if (directWars.includes(cId)) return COLORS.WAR_DIRECT;
-    if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) return COLORS.BORDERLINE;
-    if (enemyAllies.includes(cId)) return COLORS.WAR_INDIRECT;
-    if (indirectAllies.includes(cId) && isExtended) return COLORS.ALLY_INDIRECT;
-    return COLORS.DEFAULT_LAND;
-}
-
-function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
-    const expr = ['match', ['get', 'countryId']];
-    const allIds = new Set([...Object.keys(styleMap), ...directWars, ...directAllies, ...indirectAllies, ...enemyAllies, ...customNaps, ...(selectedCountryId ? [selectedCountryId] : [])]);
-    allIds.forEach(cId => {
-        const color = getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
-        expr.push(cId, color);
-    });
-    expr.push(selectedCountryId ? COLORS.DEFAULT_LAND : COLORS.NEUTRAL_UNSELECTED);
-    return expr;
-}
-
-function buildBlocColorExpression() {
-    const expr = ['match', ['get', 'countryId']];
-    for (let [id, color] of blocColorMap.entries()) { if (!multiBlocMap.has(id)) expr.push(id, color); }
-    expr.push(COLORS.DEFAULT_LAND);
-    return expr;
-}
-
-function buildOriginalBlocColorExpression() {
-    const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
-    for (let [id, color] of blocColorMap.entries()) { if (!multiBlocMap.has(id)) expr.push(id, color); }
-    for (let [id, { colors }] of multiBlocMap.entries()) expr.push(id, colors[0]);
-    expr.push(COLORS.DEFAULT_LAND);
-    return expr;
-}
-
-function buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended) {
-    const colorMap = new Map();
-    const excludeExternalNaps = document.getElementById('checkExcludeExternalNaps')?.checked || false;
-    nazioniGlobal.forEach(n => {
-        const id = n._id;
-        let color;
-        if (!selectedCountryId) color = nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
-        else if (id === selectedCountryId) color = COLORS.SELECTED;
-        else if (customNaps.includes(id)) color = COLORS.NAP;
-        else if (!excludeExternalNaps && (externalNapsSet.has(`${selectedCountryId}-${id}`) || externalNapsSet.has(`${id}-${selectedCountryId}`))) color = COLORS.NAP;
-        else if (directAllies.includes(id)) color = COLORS.ALLY_DIRECT;
-        else if (directWars.includes(id)) color = COLORS.WAR_DIRECT;
-        else if (enemyAllies.includes(id) && indirectAllies.includes(id) && isExtended) color = COLORS.BORDERLINE;
-        else if (enemyAllies.includes(id)) color = COLORS.WAR_INDIRECT;
-        else if (indirectAllies.includes(id) && isExtended) color = COLORS.ALLY_INDIRECT;
-        else color = COLORS.DEFAULT_LAND;
-        colorMap.set(id, color);
-    });
-    const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
-    for (let [id, color] of colorMap.entries()) expr.push(id.toString(), color);
-    expr.push(COLORS.NEUTRAL_UNSELECTED);
-    return expr;
-}
-
-function flattenCoords(geometry) {
-    const result = [];
-    function extract(c) { if (!c) return; if (typeof c[0] === 'number') result.push(c); else c.forEach(extract); }
-    extract(geometry.coordinates);
-    return result;
-}
-
-function buildOriginalLabels() {
-    if (!baseGeoJSON || !labelsData.length) return;
-    const regionIndex = [];
-    baseGeoJSON.features.forEach(f => {
-        const initId = f.properties?.initialCountryId;
-        if (!initId) return;
-        const coords = flattenCoords(f.geometry);
-        if (!coords.length) return;
-        let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-        coords.forEach(c => { minLng = Math.min(minLng, c[0]); maxLng = Math.max(maxLng, c[0]); minLat = Math.min(minLat, c[1]); maxLat = Math.max(maxLat, c[1]); });
-        regionIndex.push({ initId, minLng, maxLng, minLat, maxLat, geometry: f.geometry, numCoords: coords.length });
-    });
-    function pointInPolygon(point, polygon) {
-        const x = point[0], y = point[1];
-        let inside = false;
-        function processRing(ring) {
-            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-                const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-                const intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-        }
-        if (polygon.type === 'Polygon') processRing(polygon.coordinates[0]);
-        else if (polygon.type === 'MultiPolygon') polygon.coordinates.forEach(poly => processRing(poly[0]));
-        return inside;
-    }
-    const capitalMap = new Map();
-    labelsData.forEach(label => {
-        const coords = label.coordinates;
-        if (!coords) return;
-        for (let region of regionIndex) {
-            if (coords[0] >= region.minLng && coords[0] <= region.maxLng && coords[1] >= region.minLat && coords[1] <= region.maxLat) {
-                if (pointInPolygon(coords, region.geometry)) {
-                    const existing = capitalMap.get(region.initId);
-                    const flagSize = label.properties.flagSize || 0;
-                    if (!existing || flagSize > (existing.flagSize || 0)) {
-                        capitalMap.set(region.initId, { coordinates: coords, flagSize, label });
-                    }
-                    break;
-                }
-            }
-        }
-    });
-    const centroidMap = new Map();
-    regionIndex.forEach(region => {
-        if (capitalMap.has(region.initId)) return;
-        const best = centroidMap.get(region.initId);
-        if (!best || region.numCoords > best.numCoords) {
-            const coords = flattenCoords(region.geometry);
-            let sumLng = 0, sumLat = 0;
-            coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
-            const center = [sumLng / coords.length, sumLat / coords.length];
-            centroidMap.set(region.initId, { center, numCoords: region.numCoords });
-        }
-    });
-    originalLabelsData = [];
-    capitalMap.forEach((data, initId) => {
-        const nation = nationMap.get(initId);
-        const label = data.label;
-        originalLabelsData.push({
-            coordinates: data.coordinates,
-            properties: {
-                countryId: initId,
-                countryName: nation ? nation.name : label.properties.countryName,
-                countryCode: nation ? (nation.code || '').toLowerCase() : (label.properties.countryCode || '').toLowerCase(),
-                flagSize: label.properties.flagSize,
-                textSize: label.properties.textSize,
-                textColor: label.properties.textColor,
-                strokeColor: nationBaseColorMap.get(initId) || COLORS.DEFAULT_LAND
-            }
-        });
-    });
-    centroidMap.forEach((data, initId) => {
-        const nation = nationMap.get(initId);
-        if (!nation) return;
-        originalLabelsData.push({
-            coordinates: data.center,
-            properties: {
-                countryId: initId,
-                countryName: nation.name,
-                countryCode: (nation.code || '').toLowerCase(),
-                flagSize: 0.2,
-                textSize: 10,
-                textColor: '#cccccc',
-                strokeColor: nationBaseColorMap.get(initId) || COLORS.DEFAULT_LAND
-            }
-        });
-    });
-}
-
-function hashColor(str) {
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
-    const hue = Math.abs(h) % 360;
-    return `hsl(${hue}, 45%, 32%)`;
-}
-
-// ============================================================
-// LEGEND & STATS
-// ============================================================
-function updateDynamicLegend() {
-    const box = document.getElementById('dynamic-legend');
-    if (coloringMode === 'blocs') {
-        let html = '';
-        externalBlocsInfo.forEach(b => html += `<div class="legend-item"><div class="dot" style="background:${b.color}"></div><span>${b.name}</span></div>`);
-        const multi = [...multiBlocMap.values()];
-        if (multi.length) html += `<div class="legend-item"><div class="dot" style="background:linear-gradient(135deg,${multi[0].colors[0]} 50%,${multi[0].colors[1]} 50%)"></div><span>Multi-bloc</span></div>`;
-        html += `<div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>Other</span></div>`;
-        box.innerHTML = html;
-        return;
-    }
-    if (mapSource === 'original' && !selectedCountryId) {
-        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div><div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div><div style="font-size:10px;color:#666;margin-top:8px;">Original owners</div>`;
-        return;
-    }
-    if (!selectedCountryId) {
-        box.innerHTML = `<div class="legend-item"><div class="dot" style="background:#555"></div><span>NO SELECTION</span></div><div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>`;
-        return;
-    }
-    box.innerHTML = `
-        <div class="legend-item"><div class="dot" style="background:${COLORS.SELECTED}"></div><span>SELECTED NATION</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.NAP}"></div><span>MANUAL NAP</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_DIRECT}"></div><span>DIRECT WAR</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.WAR_INDIRECT}"></div><span>INDIRECT ENEMY</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_DIRECT}"></div><span>DIRECT ALLY</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.ALLY_INDIRECT}"></div><span>INDIRECT ALLY</span></div>
-        <div class="legend-item"><div class="dot" style="background:${COLORS.DEFAULT_LAND};border:1px solid rgba(255,255,255,0.3)"></div><span>NEUTRAL</span></div>
-    `;
-    if (mapSource === 'original') box.innerHTML += `<div style="font-size:10px;color:#666;margin-top:8px;">Original territory borders</div>`;
-}
-
-function updateStats() {
-    if (!selectedCountryId) {
-        document.getElementById('stats-allies').textContent = '0';
-        document.getElementById('stats-wars').textContent = '0';
-        document.getElementById('stats-naps').textContent = customNaps.length;
-    } else {
-        const target = nationMap.get(selectedCountryId);
-        if (target) {
-            document.getElementById('stats-allies').textContent = (target.allies || []).length;
-            document.getElementById('stats-wars').textContent = (target.warsWith || []).length;
-            document.getElementById('stats-naps').textContent = customNaps.length;
-        }
-    }
-    document.getElementById('chip-allies').textContent = document.getElementById('stats-allies').textContent;
-    document.getElementById('chip-wars').textContent = document.getElementById('stats-wars').textContent;
-    document.getElementById('chip-naps').textContent = document.getElementById('stats-naps').textContent;
-}
-
-function updateSelectedDisplay() {
-    const display = document.getElementById('selected-display');
-    const nameDisplay = document.getElementById('selected-name-display');
-    const flagWrapper = document.getElementById('flag-wrapper');
-    if (!selectedCountryId) { display.style.display = 'none'; return; }
-    const nation = nationMap.get(selectedCountryId);
-    if (!nation) { display.style.display = 'none'; return; }
-    nameDisplay.textContent = nation.name;
-    let code = '';
-    if (mapSource === 'original') {
-        const origLabel = originalLabelsData.find(l => l.properties.countryId === selectedCountryId);
-        code = origLabel?.properties?.countryCode || nation.code?.toLowerCase() || '';
-    } else {
-        const labelInfo = labelsData.find(l => l.properties?.countryId === selectedCountryId);
-        code = labelInfo?.properties?.countryCode?.toLowerCase() || nation.code?.toLowerCase() || '';
-    }
-    flagWrapper.innerHTML = '';
-    if (code) {
-        const img = document.createElement('img');
-        img.alt = `${nation.name} flag`;
-        img.style.cssText = 'display:inline-block!important;width:24px!important;height:16px!important;object-fit:contain!important;border-radius:2px!important;border:1px solid #00d4ff!important;background:#1a1a1a!important;vertical-align:middle!important;';
-        img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
-        img.onload = () => img.style.border = '1px solid #2ecc71';
-        img.onerror = () => { img.style.border = '1px solid #ff4747'; img.style.backgroundColor = '#ff4747'; };
-        flagWrapper.appendChild(img);
-    }
-    display.style.display = 'block';
-}
-
-// ============================================================
-// NUOVE FUNZIONI PER I CONTROLLI MODIFICATI
-// ============================================================
-function setMapSource(isOriginal) {
-    mapSource = isOriginal ? 'original' : 'actual';
-    
-    // Aggiorna evidenziazione etichette
-    const labelActual = document.getElementById('label-actual');
-    const labelOriginal = document.getElementById('label-original');
-    if (labelActual && labelOriginal) {
-        if (isOriginal) {
-            labelActual.classList.remove('active');
-            labelOriginal.classList.add('active');
-        } else {
-            labelActual.classList.add('active');
-            labelOriginal.classList.remove('active');
-        }
-    }
-    
-    renderMap();
-}
-
-function setColoringMode(mode) {
-    coloringMode = mode;
-    // Aggiorna classi attive sui bottoni
-    document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
-    document.getElementById('mode-blocs').classList.toggle('active', mode === 'blocs');
-    renderMap();
-}
-
-// Sincronizza lo stato iniziale del toggle borders
-function syncUIToState() {
-    const isOriginal = (mapSource === 'original');
-    document.getElementById('toggle-borders').checked = isOriginal;
-    
-    // Sincronizza evidenziazione etichette
-    const labelActual = document.getElementById('label-actual');
-    const labelOriginal = document.getElementById('label-original');
-    if (labelActual && labelOriginal) {
-        if (isOriginal) {
-            labelActual.classList.remove('active');
-            labelOriginal.classList.add('active');
-        } else {
-            labelActual.classList.add('active');
-            labelOriginal.classList.remove('active');
-        }
-    }
-    
-    setColoringMode(coloringMode);
-}
-
-// ============================================================
-// RENDER MAPPA
-// ============================================================
-function renderMap() {
-    if (!map || !mapDataGlobal) return;
-    updateDynamicLegend();
-    updateStats();
-    updateSelectedDisplay();
-
-    const borderLayer = map.getLayer(LYR_BORDER);
-    const originalBorderLayer = map.getLayer('original-borders-line');
-    if (mapSource === 'original') {
-        if (borderLayer) map.setLayoutProperty(LYR_BORDER, 'visibility', 'none');
-        if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'visible');
-    } else {
-        if (borderLayer) map.setLayoutProperty(LYR_BORDER, 'visibility', 'visible');
-        if (originalBorderLayer) map.setLayoutProperty('original-borders-line', 'visibility', 'none');
-    }
-
-    // Gestione layer multi-blocco per entrambe le viste (Actual e Original)
-    const multiBlocLayer = map.getLayer(LYR_MULTI_BLOC);
-    const multiBlocOriginalLayer = map.getLayer('multi-bloc-pattern-original');
-
-    if (coloringMode === 'blocs') {
-        const multiIds = [...multiBlocMap.keys()];
-        if (multiIds.length > 0) {
-            if (mapSource === 'original' && multiBlocOriginalLayer) {
-                const filter = ['in', ['get', 'initialCountryId'], ['literal', multiIds]];
-                map.setFilter('multi-bloc-pattern-original', filter);
-                map.setPaintProperty('multi-bloc-pattern-original', 'fill-pattern', getMultiBlocPatternExpressionOriginal());
-                map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'visible');
-                if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
-            } else if (multiBlocLayer) {
-                const filter = ['in', ['get', 'countryId'], ['literal', multiIds]];
-                map.setFilter(LYR_MULTI_BLOC, filter);
-                map.setPaintProperty(LYR_MULTI_BLOC, 'fill-pattern', getMultiBlocPatternExpression());
-                map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'visible');
-                if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
-            }
-        } else {
-            if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
-            if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
-        }
-    } else {
-        if (multiBlocLayer) map.setLayoutProperty(LYR_MULTI_BLOC, 'visibility', 'none');
-        if (multiBlocOriginalLayer) map.setLayoutProperty('multi-bloc-pattern-original', 'visibility', 'none');
-    }
-
-    const isExtended = document.getElementById('checkExtended').checked;
-    let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
-    if (coloringMode === 'diplomacy' && selectedCountryId) {
-        const target = nationMap.get(selectedCountryId);
-        if (target) {
-            directWars = target.warsWith || [];
-            directAllies = target.allies || [];
-            indirectAllies = getIndirectAllies(selectedCountryId);
-            enemyAllies = getEnemyAllies(selectedCountryId);
-        }
-    }
-
-    let fillExpr;
-    if (coloringMode === 'blocs') {
-        fillExpr = mapSource === 'actual' ? buildBlocColorExpression() : buildOriginalBlocColorExpression();
-    } else {
-        if (mapSource === 'actual') {
-            const styleMap = {};
-            labelsData.forEach(l => { if (l.properties?.countryId) styleMap[l.properties.countryId] = l.properties.strokeColor; });
-            fillExpr = buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended);
-        } else {
-            fillExpr = buildOriginalColorExpression(directWars, directAllies, indirectAllies, enemyAllies, isExtended);
-        }
-    }
-
-    if (map.getLayer(LYR_FILL)) {
-        map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
-        map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
-    }
-
-    toggleLabels();
-    if (labelCanvas) map.triggerRepaint();
-}
-
-// ============================================================
-// CANVAS LABELS (INVARIATO)
-// ============================================================
-let labelCanvas = null;
-let labelCtx = null;
-const flagImageCache = new Map();
-
-function initLabelCanvas() {
-    labelCanvas = document.createElement('canvas');
-    labelCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:500;';
-    map.getContainer().appendChild(labelCanvas);
-    labelCtx = labelCanvas.getContext('2d');
-    resizeLabelCanvas();
-    map.on('render', drawLabels);
-    window.addEventListener('resize', resizeLabelCanvas);
-}
-
-function resizeLabelCanvas() {
-    if (!labelCanvas) return;
-    const container = map.getContainer();
-    const r = window.devicePixelRatio || 1;
-    labelCanvas.width = container.clientWidth * r;
-    labelCanvas.height = container.clientHeight * r;
-    labelCanvas.style.width = container.clientWidth + 'px';
-    labelCanvas.style.height = container.clientHeight + 'px';
-    labelCtx.scale(r, r);
-}
-
-function toggleLabels() { if (labelCanvas) map.triggerRepaint(); }
-
-function shouldShowBlocLabels() { return coloringMode === 'blocs'; }
-
-function drawAndCollectBlocLabels(ctx, W, H) {
-    const blocBBoxes = [];
-    if (!externalBlocsInfo.length) return blocBBoxes;
-    const zoom = map.getZoom();
-    const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
-    ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-    const BLOC_MARGIN = 30;
-    for (const bloc of externalBlocsInfo) {
-        if (bloc.labelLng === null || bloc.labelLat === null) continue;
-        const pt = map.project([bloc.labelLng, bloc.labelLat]);
-        if (pt.x >= -100 && pt.x <= W + 100 && pt.y >= -60 && pt.y <= H + 60) {
-            const metrics = ctx.measureText(bloc.name);
-            blocBBoxes.push({
-                xMin: pt.x - metrics.width/2 - BLOC_MARGIN,
-                xMax: pt.x + metrics.width/2 + BLOC_MARGIN,
-                yMin: pt.y - fontSize/2 - BLOC_MARGIN,
-                yMax: pt.y + fontSize/2 + BLOC_MARGIN
-            });
-            ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
-            ctx.strokeText(bloc.name, pt.x, pt.y);
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = bloc.color;
-            ctx.fillText(bloc.name, pt.x, pt.y);
-        }
-    }
-    return blocBBoxes;
-}
-
-function drawLabels() {
-    if (!labelCanvas || !labelCtx || !labelsData.length) return;
-    const showNations = document.getElementById('checkLabels').checked;
-    const W = labelCanvas.width / (window.devicePixelRatio || 1);
-    const H = labelCanvas.height / (window.devicePixelRatio || 1);
-    const ctx = labelCtx;
-    ctx.save();
-    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-
-    let blocBBoxes = [];
-    if (shouldShowBlocLabels()) blocBBoxes = drawAndCollectBlocLabels(ctx, W, H);
-    if (!showNations) { ctx.restore(); return; }
-
-    const zoom = map.getZoom();
-    const sourceLabels = mapSource === 'original' ? originalLabelsData : labelsData;
-    const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
-    const drawnNationBoxes = [];
-
-    function intersects(b1, b2) {
-        return !(b2.xMin > b1.xMax || b2.xMax < b1.xMin || b2.yMin > b1.yMax || b2.yMax < b1.yMin);
-    }
-
-    sorted.forEach(label => {
-        const props = label.properties;
-        const coords = label.coordinates;
-        if (!coords) return;
-        if (zoom < 2.5 && props.flagSize < 0.15) return;
-        if (zoom < 3.5 && props.flagSize < 0.08) return;
-        const pt = map.project([coords[0], coords[1]]);
-        if (pt.x < -100 || pt.x > W + 100 || pt.y < -60 || pt.y > H + 60) return;
-
-        const nameStr = props.countryName?.toUpperCase() || '';
-        const baseSize = props.textSize || 10;
-        let scale = 1.0;
-        if (zoom < 2.5) scale = 1.4;
-        else if (zoom < 3) scale = 1.3;
-        else if (zoom < 4) scale = 1.2;
-        else if (zoom < 5) scale = 1.0;
-        else scale = 0.9;
-        const fontSize = Math.round(baseSize * scale);
-        ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-        const textWidth = ctx.measureText(nameStr).width;
-        const nationBox = {
-            xMin: pt.x - textWidth/2 - 1,
-            xMax: pt.x + textWidth/2 + 1,
-            yMin: pt.y - fontSize/2 - 1,
-            yMax: pt.y + fontSize/2 + 1
-        };
-        if (shouldShowBlocLabels() && blocBBoxes.some(b => intersects(nationBox, b))) return;
-        if (drawnNationBoxes.some(b => intersects(nationBox, b))) return;
-        drawnNationBoxes.push(nationBox);
-
-        const code = (props.countryCode || '').toLowerCase();
-        const flagW = Math.round(16 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
-        const flagH = Math.round(11 * (zoom < 3 ? 1.5 : zoom < 4 ? 1.3 : zoom < 5 ? 1.1 : 1.0));
-        const cachedFlag = flagImageCache.get(code);
-        const totalH = (cachedFlag ? flagH + 2 : 0) + fontSize;
-        const startY = pt.y - totalH/2;
-        if (cachedFlag) ctx.drawImage(cachedFlag, pt.x - flagW/2, startY, flagW, flagH);
-
-        let textColor;
-        const cId = props.countryId;
-        if (coloringMode === 'blocs') textColor = blocColorMap.get(cId) || '#cccccc';
-        else if (mapSource === 'original') textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
-        else textColor = selectedCountryId ? '#ffffff' : (props.textColor || '#cccccc');
-
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const textY = startY + (cachedFlag ? flagH + 2 : 0);
-        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
-        ctx.strokeText(nameStr, pt.x, textY);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = textColor;
-        ctx.fillText(nameStr, pt.x, textY);
-    });
-    ctx.restore();
-}
-
-function loadFlagImage(code) {
-    if (!code || flagImageCache.has(code)) return;
-    flagImageCache.set(code, null);
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { flagImageCache.set(code, img); if (map) map.triggerRepaint(); };
-    img.onerror = () => flagImageCache.set(code, null);
-    img.src = `https://app.warera.io/images/map/${code}.png?v=21`;
-}
-
-function preloadAllFlags() {
-    labelsData.forEach(l => { const c = l.properties?.countryCode?.toLowerCase(); if(c) loadFlagImage(c); });
-}
-
-// ============================================================
-// SETUP MAPPA
-// ============================================================
-async function setupMapLayers() {
-    const topoData = mapDataGlobal.map;
-    baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
-    labelsData = mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
-
-    if (!map.getSource(SRC_REGIONS)) map.addSource(SRC_REGIONS, { type: 'geojson', data: baseGeoJSON });
-    else map.getSource(SRC_REGIONS).setData(baseGeoJSON);
-
-    const bordersMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
-    const coastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
-    const regionsMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId === b.properties.countryId);
-
-    if (!map.getSource(SRC_BORDERS)) {
-        map.addSource(SRC_BORDERS, {
-            type: 'geojson',
-            data: {
-                type: 'FeatureCollection',
-                features: [
-                    { type: 'Feature', properties: { kind: 'border' }, geometry: bordersMesh },
-                    { type: 'Feature', properties: { kind: 'coast'  }, geometry: coastMesh   },
-                    { type: 'Feature', properties: { kind: 'region' }, geometry: regionsMesh }
-                ]
-            }
-        });
-    }
-
-    const labelsGeoJSON = {
-        type: 'FeatureCollection',
-        features: labelsData.map(l => ({ type: 'Feature', geometry: { type: 'Point', coordinates: l.coordinates }, properties: l.properties }))
-    };
-    if (!map.getSource(SRC_LABELS)) map.addSource(SRC_LABELS, { type: 'geojson', data: labelsGeoJSON });
-    else map.getSource(SRC_LABELS).setData(labelsGeoJSON);
-
-    if (!map.getLayer(LYR_FILL)) {
-        map.addLayer({
-            id: LYR_FILL,
-            type: 'fill',
-            source: SRC_REGIONS,
-            paint: { 'fill-color': COLORS.NEUTRAL_UNSELECTED, 'fill-opacity': 0.9 }
-        });
-    }
-
-    const originalBordersMesh = getOriginalBordersMesh(topoData);
-    if (!map.getSource('original-borders-src')) {
-        map.addSource('original-borders-src', { type: 'geojson', data: originalBordersMesh });
-        map.addLayer({
-            id: 'original-borders-line',
-            type: 'line',
-            source: 'original-borders-src',
-            paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 },
-            layout: { visibility: 'none' }
-        });
-    }
-
-    createAndAddStripePatterns();
-    if (!map.getLayer(LYR_MULTI_BLOC)) {
-        const multiIds = [...multiBlocMap.keys()];
-        map.addLayer({
-            id: LYR_MULTI_BLOC,
-            type: 'fill',
-            source: SRC_REGIONS,
-            filter: multiIds.length ? ['in', ['get', 'countryId'], ['literal', multiIds]] : ['==', ['get', 'countryId'], '___none___'],
-            layout: { visibility: 'none' },
-            paint: { 'fill-opacity': 0.92 }
-        });
-    }
-    // Layer multi-bloc per vista ORIGINAL
-    if (!map.getLayer('multi-bloc-pattern-original')) {
-        map.addLayer({
-            id: 'multi-bloc-pattern-original',
-            type: 'fill',
-            source: SRC_REGIONS,
-            filter: ['==', ['get', 'initialCountryId'], '___none___'],
-            layout: { visibility: 'none' },
-            paint: { 'fill-opacity': 0.92 }
-        });
-    }
-    if (!map.getLayer(LYR_COAST)) {
-        map.addLayer({
-            id: LYR_COAST,
-            type: 'line',
-            source: SRC_BORDERS,
-            filter: ['==', ['get', 'kind'], 'coast'],
-            paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.9 }
-        });
-    }
-    if (!map.getLayer(LYR_BORDER)) {
-        map.addLayer({
-            id: LYR_BORDER,
-            type: 'line',
-            source: SRC_BORDERS,
-            filter: ['==', ['get', 'kind'], 'border'],
-            paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.8 }
-        });
-    }
-    if (!map.getLayer(LYR_OUTLINE)) {
-        map.addLayer({
-            id: LYR_OUTLINE,
-            type: 'line',
-            source: SRC_BORDERS,
-            filter: ['==', ['get', 'kind'], 'region'],
-            paint: { 'line-color': '#000000', 'line-width': 0.8, 'line-opacity': 0.7 }
-        });
-    }
-    if (map.getLayer(LYR_OUTLINE) && map.getLayer(LYR_BORDER)) map.moveLayer(LYR_OUTLINE, LYR_BORDER);
-
-    initLabelCanvas();
-    preloadAllFlags();
-
-    map.off('click', LYR_FILL, onRegionClick);
-    map.on('click', LYR_FILL, onRegionClick);
-    map.on('mouseenter', LYR_FILL, () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', LYR_FILL, () => map.getCanvas().style.cursor = '');
-
-        // Precarica pattern multi-blocco
-    await buildMultiBlocPatternExpression();
-    renderMap();
-}
-
-function onRegionClick(e) {
-    if (!e.features?.length) return;
-    let cId = mapSource === 'original' ? e.features[0].properties.initialCountryId : e.features[0].properties.countryId;
-    selectedCountryId = (selectedCountryId === cId) ? null : cId;
-    renderMap();
-    if (window.umami && selectedCountryId) {
-        const nation = nationMap.get(selectedCountryId);
-        if (nation) umami.track('nation-click', { nation: nation.name });
-    }
-}
-
-// ============================================================
-// INIZIALIZZAZIONE DATI
-// ============================================================
-async function init() {
-    map = new maplibregl.Map({
-        container: 'map',
-        style: { version: 8, glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf', sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }] },
-        center: [0, 20],
-        zoom: 2,
-        minZoom: 1.7,
-        maxZoom: 8,
-        renderWorldCopies: true,
-        attributionControl: false
-    });
-    // RIMOSSO il controllo zoom +/- (NavigationControl)
-    map.on('load', async () => { await refreshData(); });
-}
-
-async function refreshData() {
-    try {
-        showLoading();
-        const [resN, resM] = await Promise.all([
-            fetch('https://api2.warera.io/trpc/country.getAllCountries'),
-            fetch('https://api4.warera.io/trpc/map.getMapData')
-        ]);
-        if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
-        const nationsData = await resN.json();
-        const mapData = await resM.json();
-        nazioniGlobal = nationsData.result.data;
-        mapDataGlobal = mapData.result.data;
-        nationMap.clear();
-        nazioniGlobal.forEach(n => nationMap.set(n._id, n));
-        await loadExternalBlocs();
-        await loadExternalNaps();
-        popolaListe();
-        await setupMapLayers();
-
-        nationBaseColorMap.clear();
-        labelsData.forEach(label => { if (label.properties?.countryId) nationBaseColorMap.set(label.properties.countryId, label.properties.strokeColor); });
-        nazioniGlobal.forEach(n => { if (!nationBaseColorMap.has(n._id)) nationBaseColorMap.set(n._id, n.color || hashColor(n._id)); });
-        buildOriginalLabels();
-        originalLabelsData.forEach(l => { const c = l.properties?.countryCode?.toLowerCase(); if (c) loadFlagImage(c); });
-        updateExternalNapsUI();
-        syncUIToState(); // imposta il toggle borders e i bottoni attivi
-        showToast('Strategic data loaded', 'success');
-    } catch (e) {
-        console.error(e);
-        showToast('Failed to load game data', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-function popolaListe() {
-    const datalist = document.getElementById('nazioniList');
-    datalist.innerHTML = '';
-    [...nazioniGlobal].sort((a,b) => a.name.localeCompare(b.name)).forEach(n => {
-        datalist.appendChild(new Option(n.name));
-    });
-}
-
-// ============================================================
-// GESTIONE NAP (MANUALI)
-// ============================================================
-function aggiungiNap() {
-    const input = document.getElementById('napInput');
-    const val = input.value.trim();
-    if (!val) { showToast('Enter a nation name', 'error'); return; }
-    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
-    if (!found) { showToast(`Nation "${val}" not found`, 'error'); return; }
-    if (customNaps.includes(found._id)) { showToast(`${found.name} already in NAP`, 'error'); return; }
-    if (selectedCountryId && found._id === selectedCountryId) { showToast('Cannot add selected nation', 'error'); return; }
-    customNaps.push(found._id);
-    input.value = '';
-    aggiornaListaNap();
-    renderMap();
-    showToast(`Added ${found.name} to NAP`, 'success');
-}
-
-function rimuoviNap(id) {
-    customNaps = customNaps.filter(n => n !== id);
-    aggiornaListaNap();
-    renderMap();
-}
-
-function aggiornaListaNap() {
-    const container = document.getElementById('napList');
-    const badge = document.getElementById('nap-count');
-    badge.textContent = customNaps.length;
-    if (!customNaps.length) {
-        container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
-        return;
-    }
-    container.innerHTML = '';
-    customNaps.forEach(id => {
-        const n = nationMap.get(id);
-        if (n) {
-            container.innerHTML += `<div class="nap-item"><span style="font-weight:600">${n.name}</span><span class="remove-nap" onclick="rimuoviNap('${id}')">✕</span></div>`;
-        }
-    });
-}
-
-function updateExternalNapsUI() {
-    const container = document.getElementById('externalNapList');
-    if (!externalNapsList.length) {
-        container.innerHTML = '<div class="empty-state">No external NAPs loaded</div>';
-        return;
-    }
-    const grouped = new Map();
-    externalNapsList.forEach(nap => {
-        if (!grouped.has(nap.fromId)) grouped.set(nap.fromId, []);
-        grouped.get(nap.fromId).push(nap.toName);
-    });
-    let html = '';
-    for (let [fromId, toNames] of grouped) {
-        const from = nationMap.get(fromId);
-        if (from) html += `<div class="nap-item" style="border-left-color:#55a5d9;"><span>${from.name}</span><span style="color:#aaa;">→ ${toNames.join(', ')}</span></div>`;
-    }
-    container.innerHTML = html;
-}
-
-// ============================================================
-// RICERCA E RESET
-// ============================================================
-function cercaNazione() {
-    const input = document.getElementById('cercaInput');
-    const val = input.value.toLowerCase().trim();
-    if (!val) { showToast('Enter a name', 'error'); return; }
-    const found = nazioniGlobal.find(n => n.name.toLowerCase() === val) || nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
-    if (found) {
-        selectedCountryId = found._id;
-        input.value = found.name;
-        renderMap();
-        const label = labelsData.find(l => l.properties?.countryId === found._id);
-        if (label) map.flyTo({ center: label.coordinates, zoom: Math.max(map.getZoom(), 3) });
-        if (window.innerWidth <= 768) document.getElementById('dynamic-legend').classList.add('hidden');
-    } else {
-        showToast(`Nation "${val}" not found`, 'error');
-    }
-}
-
-function resetDiplomazia() {
-    selectedCountryId = null;
-    customNaps = [];
-    document.getElementById('cercaInput').value = '';
-    document.getElementById('checkExtended').checked = false;
-    document.getElementById('napInput').value = '';
-    document.getElementById('checkExcludeExternalNaps').checked = false;
-    setMapSource(false); // actual
-    setColoringMode('diplomacy');
-    aggiornaListaNap();
-    renderMap();
-}
-
-function toggleStatsDetails() {
-    const name = document.getElementById('selected-name-display').textContent || 'No selection';
-    const allies = document.getElementById('stats-allies').textContent;
-    const wars = document.getElementById('stats-wars').textContent;
-    const naps = document.getElementById('stats-naps').textContent;
-    showToast(`${name} | Allies: ${allies} | Wars: ${wars} | NAPs: ${naps}`, 'info');
-}
-
-// ============================================================
-// GESTIONE HAMBURGER MENU
-// ============================================================
-function toggleHamburgerMenu() {
-    document.getElementById('hamburger-menu').classList.toggle('visible');
-}
-
-document.addEventListener('click', (e) => {
-    const btn = document.getElementById('hamburger-btn');
-    const menu = document.getElementById('hamburger-menu');
-    if (!btn.contains(e.target) && !menu.contains(e.target)) {
-        menu.classList.remove('visible');
-    }
-});
-
-// ============================================================
-// AVVIO
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
-    document.getElementById('napInput').addEventListener('keypress', e => { if (e.key === 'Enter') aggiungiNap(); });
-    document.getElementById('hamburger-btn').addEventListener('click', toggleHamburgerMenu);
-    
-    // Listener per il toggle Actual/Original Borders
-    const toggleBorders = document.getElementById('toggle-borders');
-    if (toggleBorders) {
-        toggleBorders.addEventListener('change', function(e) {
-            setMapSource(this.checked);
-        });
-    }
-});
-
-window.onload = init;
-</script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
