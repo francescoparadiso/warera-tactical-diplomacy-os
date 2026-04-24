@@ -421,7 +421,7 @@
       font-weight: 700;
     }
 
-    /* ===== MODE BUTTONS CON SLIDE (3 pulsanti) ===== */
+    /* ===== MODE BUTTONS (3 pulsanti) ===== */
     .mode-toggle-group {
       display: flex;
       background: #161b22;
@@ -430,31 +430,33 @@
       gap: 3px;
       margin-bottom: 12px;
       position: relative;
+      width: 100%;
     }
 
     /* Indicatore scorrevole */
     .mode-slider {
       position: absolute;
-        left: 3px;
+      left: 3px;
       top: 3px;
       bottom: 3px;
       width: calc(33.333% - 3px);
       background: #0062ff;
       border-radius: 6px;
       z-index: 0;
-      transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 12px rgba(0, 98, 255, 0.5);
     }
 
     .mode-btn {
       flex: 1;
-      padding: 8px 6px;
+      min-width: 0;
+      padding: 8px 2px;
       border-radius: 6px;
       border: none;
-      font-size: 11px;
+      font-size: 9px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.2px;
       cursor: pointer;
       text-align: center;
       color: #8b949e;
@@ -463,9 +465,11 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 2px;
       line-height: 1.2;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       position: relative;
       z-index: 1;
       transition: color 0.3s ease;
@@ -479,40 +483,26 @@
       color: #e6edf3;
     }
 
-    /* Fix allineamento mobile per i pulsanti mode */
+    /* Mobile */
     @media (max-width: 768px) {
       .mode-toggle-group {
         gap: 2px;
         padding: 2px;
       }
 
-      @media (max-width: 768px) {
-        #mode-population {
-          font-size: 9px;
-          letter-spacing: 0;
-        }
-      }
-
       .mode-slider {
+        left: 2px;
         top: 2px;
         bottom: 2px;
         width: calc(33.333% - 2px);
+        transition: left 0.3s ease;
       }
 
       .mode-btn {
-        padding: 10px 4px;
-        font-size: 10px;
-        letter-spacing: 0.2px;
-        gap: 3px;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        min-width: 0;
-      }
-
-      /* Posizioni aggiornate per mobile */
-      #mode-slider {
-        transition: left 0.3s ease;
+        padding: 10px 1px;
+        font-size: 8px;
+        letter-spacing: 0;
+        gap: 1px;
       }
     }
 
@@ -523,15 +513,21 @@
       justify-content: space-between;
       gap: 10px;
       cursor: pointer;
-      padding: 5px 0;
+      padding: 6px 0;
+      width: 100%;
     }
 
     .switch-label {
-      font-size: 11px;
+      flex: 1;
+      min-width: 0;
+      font-size: 10px;
       color: #8b949e;
       font-weight: 500;
       letter-spacing: 0.2px;
       user-select: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .switch {
@@ -580,6 +576,17 @@
     input:checked+.slider::before {
       transform: translateX(18px);
       background: #fff;
+    }
+
+    /* Mobile switches */
+    @media (max-width: 768px) {
+      .switch-container {
+        gap: 8px;
+      }
+      
+      .switch-label {
+        font-size: 9px;
+      }
     }
 
     /* ===== SEARCH ===== */
