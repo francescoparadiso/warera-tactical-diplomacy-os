@@ -6,6 +6,7 @@ import { buildMultiBlocPatternExpression, getMultiBlocPatternExpression, getMult
 import { buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalBlocColorExpression, buildOriginalColorExpression, getIndirectAllies, getEnemyAllies } from './diplomacy.js';
 import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } from './labels.js';
 import { updateDynamicLegend, updateStats, updateSelectedDisplay } from './ui.js';
+import { buildPopulationColorExpression, buildPopulationTextExpression } from './population.js';
 
 const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC } = LAYER_IDS;
 
@@ -15,7 +16,7 @@ export function initMap() {
     container: 'map',
     style: {
       version: 8,
-      glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+      glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
       sources: {},
       layers: [{ id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }],
     },
@@ -27,18 +28,36 @@ export function initMap() {
     attributionControl: false,
   });
 }
+function _buildLabelsWithPopulation() {
+  const source = state.mapSource === 'original' ? state.originalLabelsData : state.labelsData;
+  if (!source?.length) return [];
 
+  return source.map(l => {
+    const cId = state.mapSource === 'original' ? l.properties.countryId : l.properties.countryId;
+    const nation = state.nationMap.get(cId);
+    const pop = nation?.rankings?.countryActivePopulation?.value;
+    let popText = '';
+    if (typeof pop === 'number' && pop > 0) {
+      popText = pop >= 1_000_000 ? (pop / 1_000_000).toFixed(1) + 'M' : pop.toLocaleString();
+    }
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: l.coordinates },
+      properties: { ...l.properties, populationText: popText }
+    };
+  });
+}
 // ==================== SETUP LAYER ====================
 export async function setupMapLayers() {
   const topoData = state.mapDataGlobal.map;
   state.baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
-  state.labelsData  = state.mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
+  state.labelsData = state.mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
 
   // Sorgenti
   _addOrUpdateSource(SRC_REGIONS, { type: 'geojson', data: state.baseGeoJSON });
 
   const bordersMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
-  const coastMesh   = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
+  const coastMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a === b);
   const regionsMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId === b.properties.countryId);
 
   _addOrUpdateSource(SRC_BORDERS, {
@@ -47,18 +66,30 @@ export async function setupMapLayers() {
       type: 'FeatureCollection',
       features: [
         { type: 'Feature', properties: { kind: 'border' }, geometry: bordersMesh },
-        { type: 'Feature', properties: { kind: 'coast'  }, geometry: coastMesh   },
+        { type: 'Feature', properties: { kind: 'coast' }, geometry: coastMesh },
         { type: 'Feature', properties: { kind: 'region' }, geometry: regionsMesh },
       ],
     },
   });
 
+  // Arricchisci le label con la popolazione
+  const labelsFeatures = state.labelsData.map(l => {
+    const nation = state.nationMap.get(l.properties.countryId);
+    const pop = nation?.rankings?.countryActivePopulation?.value;
+    let popText = '';
+    if (typeof pop === 'number' && pop > 0) {
+      popText = pop >= 1_000_000 ? (pop / 1_000_000).toFixed(1) + 'M' : pop.toLocaleString();
+    }
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: l.coordinates },
+      properties: { ...l.properties, populationText: popText }
+    };
+  });
+
   _addOrUpdateSource(SRC_LABELS, {
     type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: state.labelsData.map(l => ({ type: 'Feature', geometry: { type: 'Point', coordinates: l.coordinates }, properties: l.properties })),
-    },
+    data: { type: 'FeatureCollection', features: _buildLabelsWithPopulation() },
   });
 
   // Layer fill principale
@@ -72,7 +103,27 @@ export async function setupMapLayers() {
     state.map.addSource('original-borders-src', { type: 'geojson', data: origMesh });
     state.map.addLayer({ id: 'original-borders-line', type: 'line', source: 'original-borders-src', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 }, layout: { visibility: 'none' } });
   }
-
+  // Nuovo layer per la popolazione (testo sopra le etichette)
+  if (!state.map.getLayer('population-label')) {
+    state.map.addLayer({
+      id: 'population-label',
+      type: 'symbol',
+      source: SRC_LABELS,                     // ← ora usa le etichette puntuali
+      layout: {
+        'text-field': ['get', 'populationText'],  // prende il testo già calcolato
+        'text-font': ['Open Sans Regular'],
+        'text-size': 20,
+        'text-allow-overlap': false,
+        'text-offset': [0, 1.5],               // sposta in basso di 1.5 righe
+        'visibility': 'none',
+      },
+      paint: {
+        'text-color': '#000000',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1,
+      },
+    });
+  }
   // Layer multi-bloc actual
   if (!state.map.getLayer(LYR_MULTI_BLOC)) {
     state.map.addLayer({
@@ -117,7 +168,7 @@ export function renderMap() {
   updateSelectedDisplay();
 
   // Visibilità bordi
-  _setLayerVisibility(LYR_BORDER,             state.mapSource === 'actual');
+  _setLayerVisibility(LYR_BORDER, state.mapSource === 'actual');
   _setLayerVisibility('original-borders-line', state.mapSource === 'original');
 
   // Layer multi-bloc
@@ -146,16 +197,18 @@ export function renderMap() {
   if (state.coloringMode === 'diplomacy' && state.selectedCountryId) {
     const target = state.nationMap.get(state.selectedCountryId);
     if (target) {
-      directWars    = target.warsWith || [];
-      directAllies  = target.allies   || [];
+      directWars = target.warsWith || [];
+      directAllies = target.allies || [];
       indirectAllies = getIndirectAllies(state.selectedCountryId);
-      enemyAllies    = getEnemyAllies(state.selectedCountryId);
+      enemyAllies = getEnemyAllies(state.selectedCountryId);
     }
   }
 
   // Fill color expression
   let fillExpr;
-  if (state.coloringMode === 'blocs') {
+  if (state.coloringMode === 'population') {
+    fillExpr = buildPopulationColorExpression(state.mapSource === 'original');
+  } else if (state.coloringMode === 'blocs') {
     fillExpr = state.mapSource === 'actual' ? buildBlocColorExpression() : buildOriginalBlocColorExpression();
   } else if (state.mapSource === 'actual') {
     const styleMap = {};
@@ -169,7 +222,21 @@ export function renderMap() {
     state.map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
     state.map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
   }
+  // Label popolazione
+  const popLayer = state.map.getLayer('population-label');
+  if (popLayer) {
+    state.map.setLayoutProperty('population-label', 'visibility',
+      state.coloringMode === 'population' ? 'visible' : 'none'
+    );
+  }
 
+  // AGGIORNARE la sorgente delle label ogni volta
+  if (state.map.getSource(SRC_LABELS)) {
+    state.map.getSource(SRC_LABELS).setData({
+      type: 'FeatureCollection',
+      features: _buildLabelsWithPopulation()
+    });
+  }
   if (state.labelCanvas) state.map.triggerRepaint();
 }
 
@@ -184,7 +251,7 @@ function _setLayerVisibility(id, visible) {
 }
 
 function _getOriginalBordersMesh(topoData) {
-  const cloned  = JSON.parse(JSON.stringify(topoData));
+  const cloned = JSON.parse(JSON.stringify(topoData));
   const regions = cloned.objects.regions;
   if (regions?.geometries) {
     regions.geometries.forEach(geom => {
@@ -210,7 +277,7 @@ function _onRegionClick(e) {
 // ==================== RICERCA E RESET ====================
 export function cercaNazione() {
   const input = document.getElementById('cercaInput');
-  const val   = input.value.toLowerCase().trim();
+  const val = input.value.toLowerCase().trim();
   if (!val) return;
   const found = state.nazioniGlobal.find(n => n.name.toLowerCase() === val) || state.nazioniGlobal.find(n => n.name.toLowerCase().includes(val));
   if (found) {
@@ -242,7 +309,7 @@ export function setMapSource(isOriginal) {
   const lO = document.getElementById('label-original');
   if (lA && lO) {
     lA.classList.toggle('active', !isOriginal);
-    lO.classList.toggle('active',  isOriginal);
+    lO.classList.toggle('active', isOriginal);
   }
   document.getElementById('toggle-borders').checked = isOriginal;
   renderMap();
@@ -250,7 +317,28 @@ export function setMapSource(isOriginal) {
 
 export function setColoringMode(mode) {
   state.coloringMode = mode;
+  
   document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
-  document.getElementById('mode-blocs').classList.toggle('active',     mode === 'blocs');
+  document.getElementById('mode-blocs').classList.toggle('active', mode === 'blocs');
+  document.getElementById('mode-population').classList.toggle('active', mode === 'population');
+
+  // 🔥 Muovi lo slider
+const slider = document.getElementById('mode-slider');
+if (slider) {
+  const isMobile = window.innerWidth <= 768;
+  const positions = isMobile 
+    ? {
+        'diplomacy': '2px',
+        'blocs': 'calc(33.333% + 0.5px)',
+        'population': 'calc(66.666% - 1px)'
+      }
+    : {
+        'diplomacy': '3px',
+        'blocs': 'calc(33.333% + 1px)',
+        'population': 'calc(66.666% - 1px)'
+      };
+  slider.style.left = positions[mode] || '3px';
+}
+
   renderMap();
 }

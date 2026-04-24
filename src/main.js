@@ -19,7 +19,7 @@ async function refreshData() {
     if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
 
     const nationsData = await resN.json();
-    const mapData     = await resM.json();
+    const mapData = await resM.json();
 
     state.nazioniGlobal = nationsData.result.data;
     state.mapDataGlobal = mapData.result.data;
@@ -83,15 +83,15 @@ function setupEventListeners() {
 
   // Mode buttons
   document.getElementById('mode-diplomacy').addEventListener('click', () => setColoringMode('diplomacy'));
-  document.getElementById('mode-blocs').addEventListener('click',     () => setColoringMode('blocs'));
-
+  document.getElementById('mode-blocs').addEventListener('click', () => setColoringMode('blocs'));
+  document.getElementById('mode-population').addEventListener('click', () => setColoringMode('population'));
   // Switches
-  document.getElementById('checkExtended').addEventListener('change',            () => { import('./map.js').then(m => m.renderMap()); });
-  document.getElementById('checkLabels').addEventListener('change',              () => { if (state.map) state.map.triggerRepaint(); });
+  document.getElementById('checkExtended').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
+  document.getElementById('checkLabels').addEventListener('change', () => { if (state.map) state.map.triggerRepaint(); });
   document.getElementById('checkExcludeExternalNaps').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
 
   // Collapsible NAP sections
-  document.getElementById('manualNapToggle').addEventListener('click',   () => toggleNapSection('manual-nap-section'));
+  document.getElementById('manualNapToggle').addEventListener('click', () => toggleNapSection('manual-nap-section'));
   document.getElementById('externalNapToggle').addEventListener('click', () => toggleNapSection('external-nap-section'));
 
   // Legenda
@@ -100,7 +100,7 @@ function setupEventListeners() {
   });
 
   // Zoom controls
-  document.getElementById('zoomInBtn')?.addEventListener('click',  () => { state.map?.zoomIn();  });
+  document.getElementById('zoomInBtn')?.addEventListener('click', () => { state.map?.zoomIn(); });
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => { state.map?.zoomOut(); });
 
   // Stats chip (mobile): mostra info della nazione selezionata
@@ -108,8 +108,8 @@ function setupEventListeners() {
     if (state.selectedCountryId) {
       const nation = state.nationMap.get(state.selectedCountryId);
       const allies = document.getElementById('stats-allies').textContent;
-      const wars   = document.getElementById('stats-wars').textContent;
-      const naps   = document.getElementById('stats-naps').textContent;
+      const wars = document.getElementById('stats-wars').textContent;
+      const naps = document.getElementById('stats-naps').textContent;
       showToast(`${nation?.name || 'Nation'} | ${allies} allies · ${wars} wars · ${naps} NAPs`, 'info');
     } else {
       showToast('Click a nation on the map to select it', 'info');
@@ -117,7 +117,7 @@ function setupEventListeners() {
   });
 
   // Hamburger menu
-  const hamburgerBtn  = document.getElementById('hamburger-btn');
+  const hamburgerBtn = document.getElementById('hamburger-btn');
   const hamburgerMenu = document.getElementById('hamburger-menu');
   hamburgerBtn.addEventListener('click', e => {
     e.stopPropagation();
@@ -133,6 +133,10 @@ function setupEventListeners() {
 // ==================== INIT ====================
 async function init() {
   initMap();
+  const slider = document.getElementById('mode-slider');
+if (slider) {
+  slider.style.left = '3px'; // Diplomacy è attivo di default
+}
   setupEventListeners();
   state.map.on('load', refreshData);
 }

@@ -3,9 +3,9 @@ import { COLORS } from './config.js';
 
 // ==================== TOAST ====================
 const TOAST_ICONS = {
-  info:    '💬',
+  info: '💬',
   success: '✅',
-  error:   '❌',
+  error: '❌',
   warning: '⚠️',
 };
 
@@ -14,7 +14,7 @@ export function showToast(message, type = 'info') {
 
   // Separa titolo e dettaglio (opzionale: usa " | " come separatore)
   const parts = message.split(' | ');
-  const title  = parts[0];
+  const title = parts[0];
   const detail = parts[1] || '';
 
   const toast = document.createElement('div');
@@ -36,17 +36,42 @@ export function showToast(message, type = 'info') {
 
 // ==================== LEGENDA ====================
 const LEGEND_ITEMS = [
-  { color: COLORS.SELECTED,    name: 'Selected',       desc: 'The nation you clicked' },
-  { color: COLORS.NAP,         name: 'NAP',             desc: 'Non-aggression pact' },
-  { color: COLORS.WAR_DIRECT,  name: 'Direct war',      desc: 'Active conflict' },
-  { color: COLORS.WAR_INDIRECT,name: 'Indirect enemy',  desc: "Enemy's allies" },
-  { color: COLORS.ALLY_DIRECT, name: 'Direct ally',     desc: 'Formal alliance' },
-  { color: COLORS.ALLY_INDIRECT,name:'Indirect ally',   desc: "Ally's allies" },
-  { color: COLORS.DEFAULT_LAND,name: 'Neutral',         desc: 'No relation' },
+  { color: COLORS.SELECTED, name: 'Selected', desc: 'The nation you clicked' },
+  { color: COLORS.NAP, name: 'NAP', desc: 'Non-aggression pact' },
+  { color: COLORS.WAR_DIRECT, name: 'Direct war', desc: 'Active conflict' },
+  { color: COLORS.WAR_INDIRECT, name: 'Indirect enemy', desc: "Enemy's allies" },
+  { color: COLORS.ALLY_DIRECT, name: 'Direct ally', desc: 'Formal alliance' },
+  { color: COLORS.ALLY_INDIRECT, name: 'Indirect ally', desc: "Ally's allies" },
+  { color: COLORS.DEFAULT_LAND, name: 'Neutral', desc: 'No relation' },
 ];
 
 export function updateDynamicLegend() {
   const box = document.getElementById('dynamic-legend');
+
+  // ----- POPULATION MODE -----
+  if (state.coloringMode === 'population') {
+    let min = Infinity, max = -Infinity;
+    for (const nation of state.nationMap.values()) {
+      const pop = nation?.rankings?.countryActivePopulation?.value;
+      if (typeof pop === 'number' && pop > 0) {
+        if (pop < min) min = pop;
+        if (pop > max) max = pop;
+      }
+    }
+
+    box.innerHTML = `
+      <div class="legend-section-title">Active Population</div>
+      <div style="margin: 4px 0;">
+        <div style="width:100%;height:14px;background:linear-gradient(to right, #ffffcc, #ff9900);border-radius:3px;"></div>
+      </div>
+      <div class="legend-item" style="justify-content:space-between; padding: 0 4px;">
+        <span style="font-size:10px; color:#ccc;">${min.toLocaleString()}</span>
+        <span style="font-size:10px; color:#ccc;">${max.toLocaleString()}</span>
+      </div>
+      <div class="legend-note">Higher = darker</div>
+    `;
+    return;
+  }
 
   if (state.coloringMode === 'blocs') {
     let html = '';
@@ -103,13 +128,13 @@ export function updateDynamicLegend() {
   // Con nazione selezionata: mostra tutte le voci con conteggio
   const target = state.nationMap.get(state.selectedCountryId);
   const alliesCnt = target?.allies?.length ?? 0;
-  const warsCnt   = target?.warsWith?.length ?? 0;
-  const napsCnt   = state.customNaps.length + _countExternalNaps();
+  const warsCnt = target?.warsWith?.length ?? 0;
+  const napsCnt = state.customNaps.length + _countExternalNaps();
 
   const counts = {
-    [COLORS.ALLY_DIRECT]:  alliesCnt,
-    [COLORS.WAR_DIRECT]:   warsCnt,
-    [COLORS.NAP]:          napsCnt,
+    [COLORS.ALLY_DIRECT]: alliesCnt,
+    [COLORS.WAR_DIRECT]: warsCnt,
+    [COLORS.NAP]: napsCnt,
   };
 
   let html = '';
@@ -143,15 +168,15 @@ function _countExternalNaps() {
 // ==================== STATS ====================
 export function updateStats() {
   const allies = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.allies?.length ?? 0) : 0;
-  const wars   = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.warsWith?.length ?? 0) : 0;
-  const naps   = state.customNaps.length;
+  const wars = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.warsWith?.length ?? 0) : 0;
+  const naps = state.customNaps.length;
 
   document.getElementById('stats-allies').textContent = allies;
-  document.getElementById('stats-wars').textContent   = wars;
-  document.getElementById('stats-naps').textContent   = naps;
-  document.getElementById('chip-allies').textContent  = allies;
-  document.getElementById('chip-wars').textContent    = wars;
-  document.getElementById('chip-naps').textContent    = naps;
+  document.getElementById('stats-wars').textContent = wars;
+  document.getElementById('stats-naps').textContent = naps;
+  document.getElementById('chip-allies').textContent = allies;
+  document.getElementById('chip-wars').textContent = wars;
+  document.getElementById('chip-naps').textContent = naps;
 }
 
 // ==================== SELECTED DISPLAY ====================
@@ -171,8 +196,8 @@ export function updateSelectedDisplay() {
   }
 
   const allies = nation.allies?.length ?? 0;
-  const wars   = nation.warsWith?.length ?? 0;
-  const naps   = state.customNaps.length + _countExternalNaps();
+  const wars = nation.warsWith?.length ?? 0;
+  const naps = state.customNaps.length + _countExternalNaps();
 
   const flagHtml = code
     ? `<img src="https://app.warera.io/images/map/${code}.png?v=21" alt="${nation.name}" onerror="this.style.display='none'" />`
@@ -211,7 +236,7 @@ export function updateNapListUI() {
   }
 
   container.innerHTML = state.customNaps.map(id => {
-    const n    = state.nationMap.get(id);
+    const n = state.nationMap.get(id);
     if (!n) return '';
     const code = (n.code || '').toLowerCase();
     const flagHtml = code
@@ -259,7 +284,7 @@ export function updateExternalNapsUI() {
       <div class="nap-item external">
         ${flagHtml}
         <span class="nap-name">${from.name}</span>
-        <span class="nap-to" title="${toNames.join(', ')}">→ ${toNames.length > 2 ? toNames.slice(0,2).join(', ') + ` +${toNames.length - 2}` : toNames.join(', ')}</span>
+        <span class="nap-to" title="${toNames.join(', ')}">→ ${toNames.length > 2 ? toNames.slice(0, 2).join(', ') + ` +${toNames.length - 2}` : toNames.join(', ')}</span>
       </div>`;
   }
   container.innerHTML = html;
@@ -267,9 +292,9 @@ export function updateExternalNapsUI() {
 
 // ==================== TOGGLE COLLAPSIBLE ====================
 export function toggleNapSection(sectionId) {
-  const body    = document.getElementById(sectionId);
-  const iconId  = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
-  const icon    = document.getElementById(iconId);
+  const body = document.getElementById(sectionId);
+  const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
+  const icon = document.getElementById(iconId);
   if (!body || !icon) return;
 
   const isOpen = body.classList.contains('open');
@@ -287,9 +312,9 @@ export function syncUIToState() {
   const lO = document.getElementById('label-original');
   if (lA && lO) {
     lA.classList.toggle('active', !isOriginal);
-    lO.classList.toggle('active',  isOriginal);
+    lO.classList.toggle('active', isOriginal);
   }
-
+  document.getElementById('mode-population')?.classList.toggle('active', state.coloringMode === 'population');
   document.getElementById('mode-diplomacy').classList.toggle('active', state.coloringMode === 'diplomacy');
-  document.getElementById('mode-blocs').classList.toggle('active',     state.coloringMode === 'blocs');
+  document.getElementById('mode-blocs').classList.toggle('active', state.coloringMode === 'blocs');
 }
