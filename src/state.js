@@ -16,7 +16,7 @@ export const state = {
   originalLabelsData: [],
   labelsData: [],
   mapSource: 'actual',       // 'actual' | 'original'
-  coloringMode: 'diplomacy', // 'diplomacy' | 'blocs'
+  coloringMode: 'diplomacy', // 'diplomacy' | 'blocs' | 'population' | 'weeklyDamage'
   patternImageCache: new Map(),
   flagImageCache: new Map(),
   labelCanvas: null,

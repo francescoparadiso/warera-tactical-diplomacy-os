@@ -112,6 +112,75 @@ export function drawLabels() {
     ctx.fillStyle = textColor;
     ctx.fillText(nameStr, pt.x, textY);
   });
+  // === ETICHETTE AGGIUNTIVE: Popolazione o Danni ===
+  if (state.coloringMode === 'population' || state.coloringMode === 'weeklyDamage') {
+    const isPopulation = state.coloringMode === 'population';
+    const sourceLabels = state.mapSource === 'original' ? state.originalLabelsData : state.labelsData;
+    const zoom = state.map.getZoom();
+
+    // Calcola min/max dinamici per i danni settimanali
+    let minDmg = Infinity, maxDmg = -Infinity;
+    if (!isPopulation) {
+      for (const nation of state.nationMap.values()) {
+        const dmg = nation?.rankings?.weeklyCountryDamages?.value;
+        if (typeof dmg === 'number' && dmg >= 0) {
+          if (dmg < minDmg) minDmg = dmg;
+          if (dmg > maxDmg) maxDmg = dmg;
+        }
+      }
+    }
+
+    // Stile coerente con i nomi (usa lo stesso font e alone)
+    ctx.font = `bold 12px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 4;
+
+    sourceLabels.forEach(label => {
+      const coords = label.coordinates;
+      if (!coords) return;
+
+      const pt = state.map.project([coords[0], coords[1]]);
+      if (pt.x < -100 || pt.x > W + 100 || pt.y < -60 || pt.y > H + 60) return;
+
+      const cId = label.properties.countryId;
+      const nation = state.nationMap.get(cId);
+      if (!nation) return;
+
+      let text = '';
+      let color = '#ffffff';
+
+      if (isPopulation) {
+        const pop = nation?.rankings?.countryActivePopulation?.value;
+        if (typeof pop === 'number' && pop > 0) {
+          text = pop >= 1_000_000 ? (pop / 1_000_000).toFixed(1) + 'M' : pop.toLocaleString();
+        }
+      } else { // weeklyDamage
+        const dmg = nation?.rankings?.weeklyCountryDamages?.value;
+        if (typeof dmg === 'number' && dmg >= 0) {
+          text = dmg >= 1e6 ? (dmg / 1e6).toFixed(1) + 'M' :
+                 dmg >= 1e3 ? (dmg / 1e3).toFixed(1) + 'K' :
+                 String(dmg);
+          // Colore basato sull'intensità (rosso per danni alti, blu per bassi)
+          const t = (maxDmg > minDmg) ? (dmg - minDmg) / (maxDmg - minDmg) : 0;
+          const r = Math.round(69 + (215 - 69) * t);
+          const g = Math.round(117 + (48 - 117) * t);
+          const b = Math.round(180 + (39 - 180) * t);
+          color = `rgb(${r},${g},${b})`;
+        }
+      }
+
+      if (text) {
+        // Posiziona il testo sotto il nome della nazione (circa 18px più in basso)
+        const textY = pt.y + 16; 
+        ctx.fillStyle = color;
+        ctx.fillText(text, pt.x, textY);
+      }
+    });
+
+    ctx.shadowBlur = 0; // reset ombra
+  }
   ctx.restore();
 }
 

@@ -102,6 +102,7 @@ document.getElementById('theme-toggle-btn').addEventListener('click', function (
   document.getElementById('mode-diplomacy').addEventListener('click', () => setColoringMode('diplomacy'));
   document.getElementById('mode-blocs').addEventListener('click', () => setColoringMode('blocs'));
   document.getElementById('mode-population').addEventListener('click', () => setColoringMode('population'));
+  document.getElementById('mode-weeklyDamage').addEventListener('click', () => setColoringMode('weeklyDamage'));
   // Switches
   document.getElementById('checkExtended').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
   document.getElementById('checkLabels').addEventListener('change', () => { if (state.map) state.map.triggerRepaint(); });

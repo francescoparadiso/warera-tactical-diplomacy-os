@@ -7,6 +7,7 @@ import { buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalB
 import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } from './labels.js';
 import { updateDynamicLegend, updateStats, updateSelectedDisplay } from './ui.js';
 import { buildPopulationColorExpression, buildPopulationTextExpression } from './population.js';
+import { buildWeeklyDamageColorExpression } from './weeklyDamage.js';
 
 const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC } = LAYER_IDS;
 
@@ -105,27 +106,6 @@ export async function setupMapLayers() {
     state.map.addSource('original-borders-src', { type: 'geojson', data: origMesh });
     state.map.addLayer({ id: 'original-borders-line', type: 'line', source: 'original-borders-src', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 }, layout: { visibility: 'none' } });
   }
-  // Nuovo layer per la popolazione (testo sopra le etichette)
-  if (!state.map.getLayer('population-label')) {
-    state.map.addLayer({
-      id: 'population-label',
-      type: 'symbol',
-      source: SRC_LABELS,                     // ← ora usa le etichette puntuali
-      layout: {
-        'text-field': ['get', 'populationText'],  // prende il testo già calcolato
-        'text-font': ['Open Sans Regular'],
-        'text-size': 20,
-        'text-allow-overlap': false,
-        'text-offset': [0, 1.5],               // sposta in basso di 1.5 righe
-        'visibility': 'none',
-      },
-      paint: {
-        'text-color': '#000000',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1,
-      },
-    });
-  }
   // Layer multi-bloc actual
   if (!state.map.getLayer(LYR_MULTI_BLOC)) {
     state.map.addLayer({
@@ -210,6 +190,8 @@ export function renderMap() {
   let fillExpr;
   if (state.coloringMode === 'population') {
     fillExpr = buildPopulationColorExpression(state.mapSource === 'original');
+  } else if (state.coloringMode === 'weeklyDamage') {
+    fillExpr = buildWeeklyDamageColorExpression(state.mapSource === 'original');
   } else if (state.coloringMode === 'blocs') {
     fillExpr = state.mapSource === 'actual' ? buildBlocColorExpression() : buildOriginalBlocColorExpression();
   } else if (state.mapSource === 'actual') {
@@ -223,13 +205,6 @@ export function renderMap() {
   if (state.map.getLayer(LYR_FILL)) {
     state.map.setPaintProperty(LYR_FILL, 'fill-color', fillExpr);
     state.map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
-  }
-  // Label popolazione
-  const popLayer = state.map.getLayer('population-label');
-  if (popLayer) {
-    state.map.setLayoutProperty('population-label', 'visibility',
-      state.coloringMode === 'population' ? 'visible' : 'none'
-    );
   }
 
   // AGGIORNARE la sorgente delle label ogni volta
@@ -347,28 +322,35 @@ export function applyTheme() {
 }
 export function setColoringMode(mode) {
   state.coloringMode = mode;
-  
+
   document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
   document.getElementById('mode-blocs').classList.toggle('active', mode === 'blocs');
   document.getElementById('mode-population').classList.toggle('active', mode === 'population');
+  document.getElementById('mode-weeklyDamage').classList.toggle('active', mode === 'weeklyDamage');
 
-  // 🔥 Muovi lo slider
-const slider = document.getElementById('mode-slider');
-if (slider) {
-  const isMobile = window.innerWidth <= 768;
-  const positions = isMobile 
-    ? {
-        'diplomacy': '2px',
-        'blocs': 'calc(33.333% + 0.5px)',
-        'population': 'calc(66.666% - 1px)'
+  const slider = document.getElementById('mode-slider');
+  if (slider) {
+    const isMobile = window.innerWidth <= 768;
+    const positions = isMobile
+      ? {
+        diplomacy: '2px',
+        blocs: 'calc(25% + 0.5px)',
+        population: 'calc(50% + 0.5px)',
+        weeklyDamage: 'calc(75% - 1px)'
       }
-    : {
-        'diplomacy': '3px',
-        'blocs': 'calc(33.333% + 1px)',
-        'population': 'calc(66.666% - 1px)'
+      : {
+        diplomacy: '3px',
+        blocs: 'calc(25% + 1.5px)',
+        population: 'calc(50% + 0px)',
+        weeklyDamage: 'calc(75% - 2px)'
       };
-  slider.style.left = positions[mode] || '3px';
-}
+    slider.style.left = positions[mode] || '3px';
+  }
 
-  renderMap();
+  if (mode === 'damage') {
+    // gestione damage layer già presente
+  } else {
+    if (state.damageLayerActive) { /* ... */ }
+    renderMap();
+  }
 }

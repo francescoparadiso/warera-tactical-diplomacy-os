@@ -1,6 +1,12 @@
 import { state } from './state.js';
 import { COLORS } from './config.js';
-
+function _fmtDmg(n) {
+  if (!n) return '0';
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return String(n);
+}
 // ==================== TOAST ====================
 const TOAST_ICONS = {
   info: '💬',
@@ -72,7 +78,23 @@ export function updateDynamicLegend() {
     `;
     return;
   }
-
+if (state.coloringMode === 'weeklyDamage') {
+  let min = Infinity, max = -Infinity;
+  for (const nation of state.nationMap.values()) {
+    const dmg = nation?.rankings?.weeklyCountryDamages?.value;
+    if (typeof dmg === 'number' && dmg >= 0) {
+      if (dmg < min) min = dmg;
+      if (dmg > max) max = dmg;
+    }
+  }
+  box.innerHTML = `
+    <div class="legend-section-title">Weekly Damage</div>
+    <div style="margin:4px 0;">
+      <div style="width:100%;height:14px;background:linear-gradient(to right, #4575b4, #d73027);border-radius:3px;"></div>
+    </div>
+    <div class="legend-note">Higher = darker</div>`;
+  return;
+}
   if (state.coloringMode === 'blocs') {
     let html = '';
     state.externalBlocsInfo.forEach(b => {

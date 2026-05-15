@@ -438,7 +438,8 @@
       left: 3px;
       top: 3px;
       bottom: 3px;
-      width: calc(33.333% - 3px);
+      width: calc(25% - 4.5px);
+      /* 4 pulsanti */
       background: #0062ff;
       border-radius: 6px;
       z-index: 0;
@@ -492,7 +493,8 @@
         left: 2px;
         top: 2px;
         bottom: 2px;
-        width: calc(33.333% - 2px);
+        width: calc(25% - 3px);
+        /* 4 pulsanti */
         transition: left 0.3s ease;
       }
 
@@ -1277,7 +1279,7 @@
       border-color: #c4b394;
     }
 
-        /* Toggle pill */
+    /* Toggle pill */
     body.light-theme #border-toggle-container {
       background: rgba(240, 230, 210, 0.9);
       border-color: rgba(139, 115, 85, 0.25);
@@ -1396,12 +1398,14 @@
       background: rgba(255, 255, 255, 0.9);
       border-color: rgba(0, 0, 0, 0.1);
     }
+
     body.light-theme #theme-toggle-btn {
       background: rgba(255, 255, 255, 0.9);
       border-color: rgba(0, 0, 0, 0.2);
       color: #ff8c00;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
+
     body.light-theme #theme-toggle-btn:hover {
       background: rgba(0, 98, 255, 0.1);
       border-color: #0062ff;
@@ -1413,15 +1417,18 @@
         right: 10px;
         gap: 6px;
       }
+
       #border-toggle-container {
         padding: 3px 8px;
       }
+
       #theme-toggle-btn {
         width: 32px;
         height: 32px;
         font-size: 16px;
       }
     }
+
     .pill-label {
       font-size: 10px;
       font-weight: 600;
@@ -1644,7 +1651,8 @@
           <div class="mode-slider" id="mode-slider"></div>
           <div id="mode-diplomacy" class="mode-btn active">⚔️ Diplomacy</div>
           <div id="mode-blocs" class="mode-btn">🏛️ Blocs</div>
-          <div id="mode-population" class="mode-btn">👥 Population</div>
+          <div id="mode-population" class="mode-btn">👥 Pop.</div>
+          <div id="mode-weeklyDamage" class="mode-btn">🔥 Weekly Dmg</div>
         </div>
         <label class="switch-container">
           <span class="switch-label">🌐 Extended Diplomacy</span>
