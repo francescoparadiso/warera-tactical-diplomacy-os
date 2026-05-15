@@ -20,5 +20,6 @@ export const state = {
   patternImageCache: new Map(),
   flagImageCache: new Map(),
   labelCanvas: null,
+  theme: 'dark',
   labelCtx: null,
 };

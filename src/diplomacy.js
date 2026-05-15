@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { COLORS } from './config.js';
+import { COLORS, THEMES } from './config.js';
 
 // ==================== HELPERS DIPLOMAZIA ====================
 export function getIndirectAllies(targetId) {
@@ -33,7 +33,7 @@ export function getColorForCountry(cId, directWars, directAllies, indirectAllies
   );
   const isNap = isManualNap || isExternalNap;
 
-  if (!state.selectedCountryId)        return styleMap[cId] || COLORS.NEUTRAL_UNSELECTED;
+  if (!state.selectedCountryId)        return styleMap[cId] || THEMES[state.theme].NEUTRAL_UNSELECTED;
   if (cId === state.selectedCountryId) return COLORS.SELECTED;
   if (isNap)                           return COLORS.NAP;
   if (directAllies.includes(cId))      return COLORS.ALLY_DIRECT;
@@ -41,26 +41,30 @@ export function getColorForCountry(cId, directWars, directAllies, indirectAllies
   if (enemyAllies.includes(cId) && indirectAllies.includes(cId) && isExtended) return COLORS.BORDERLINE;
   if (enemyAllies.includes(cId))       return COLORS.WAR_INDIRECT;
   if (indirectAllies.includes(cId) && isExtended) return COLORS.ALLY_INDIRECT;
-  return COLORS.DEFAULT_LAND;
+  return THEMES[state.theme].DEFAULT_LAND;
 }
 
 // ==================== BUILD EXPRESSIONS ====================
 export function buildDiplomacyColorExpression(directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended) {
+  const theme = THEMES[state.theme];
   const expr = ['match', ['get', 'countryId']];
   const allIds = new Set([
     ...Object.keys(styleMap), ...directWars, ...directAllies,
     ...indirectAllies, ...enemyAllies, ...state.customNaps,
     ...(state.selectedCountryId ? [state.selectedCountryId] : []),
   ]);
+
   allIds.forEach(cId => expr.push(cId, getColorForCountry(cId, directWars, directAllies, indirectAllies, enemyAllies, styleMap, isExtended)));
-  expr.push(state.selectedCountryId ? COLORS.DEFAULT_LAND : COLORS.NEUTRAL_UNSELECTED);
+
+  // Fallback: SEMPRE il colore neutro del tema, indipendentemente dalla selezione
+  expr.push(theme.NEUTRAL_UNSELECTED);
   return expr;
 }
 
 export function buildBlocColorExpression() {
   const expr = ['match', ['get', 'countryId']];
   for (const [id, color] of state.blocColorMap.entries()) { if (!state.multiBlocMap.has(id)) expr.push(id, color); }
-  expr.push(COLORS.DEFAULT_LAND);
+  expr.push(THEMES[state.theme].DEFAULT_LAND);
   return expr;
 }
 
@@ -68,7 +72,7 @@ export function buildOriginalBlocColorExpression() {
   const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
   for (const [id, color] of state.blocColorMap.entries()) { if (!state.multiBlocMap.has(id)) expr.push(id, color); }
   for (const [id, { colors }] of state.multiBlocMap.entries()) expr.push(id, colors[0]);
-  expr.push(COLORS.DEFAULT_LAND);
+  expr.push(THEMES[state.theme].DEFAULT_LAND);
   return expr;
 }
 
@@ -78,7 +82,7 @@ export function buildOriginalColorExpression(directWars, directAllies, indirectA
   state.nazioniGlobal.forEach(n => {
     const id = n._id;
     let color;
-    if (!state.selectedCountryId)        color = state.nationBaseColorMap.get(id) || COLORS.DEFAULT_LAND;
+    if (!state.selectedCountryId)        color = state.nationBaseColorMap.get(id) || THEMES[state.theme].DEFAULT_LAND;
     else if (id === state.selectedCountryId) color = COLORS.SELECTED;
     else if (state.customNaps.includes(id)) color = COLORS.NAP;
     else if (!excludeExtNaps && (state.externalNapsSet.has(`${state.selectedCountryId}-${id}`) || state.externalNapsSet.has(`${id}-${state.selectedCountryId}`))) color = COLORS.NAP;
@@ -87,12 +91,12 @@ export function buildOriginalColorExpression(directWars, directAllies, indirectA
     else if (enemyAllies.includes(id) && indirectAllies.includes(id) && isExtended) color = COLORS.BORDERLINE;
     else if (enemyAllies.includes(id))   color = COLORS.WAR_INDIRECT;
     else if (indirectAllies.includes(id) && isExtended) color = COLORS.ALLY_INDIRECT;
-    else color = COLORS.DEFAULT_LAND;
+    else color = THEMES[state.theme].DEFAULT_LAND;
     colorMap.set(id, color);
   });
 
   const expr = ['match', ['to-string', ['get', 'initialCountryId']]];
   for (const [id, color] of colorMap.entries()) expr.push(id.toString(), color);
-  expr.push(COLORS.NEUTRAL_UNSELECTED);
+  expr.push(THEMES[state.theme].NEUTRAL_UNSELECTED);
   return expr;
 }

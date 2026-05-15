@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import * as topojson from 'topojson-client';
 import { state } from './state.js';
-import { COLORS, LAYER_IDS } from './config.js';
+import { COLORS, LAYER_IDS, THEMES } from './config.js';
 import { buildMultiBlocPatternExpression, getMultiBlocPatternExpression, getMultiBlocPatternExpressionOriginal } from './patterns.js';
 import { buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalBlocColorExpression, buildOriginalColorExpression, getIndirectAllies, getEnemyAllies } from './diplomacy.js';
 import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } from './labels.js';
@@ -10,15 +10,17 @@ import { buildPopulationColorExpression, buildPopulationTextExpression } from '.
 
 const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC } = LAYER_IDS;
 
+
 // ==================== INIT MAPPA ====================
 export function initMap() {
+  const theme = THEMES[state.theme];
   state.map = new maplibregl.Map({
     container: 'map',
     style: {
       version: 8,
       glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
       sources: {},
-      layers: [{ id: 'background', type: 'background', paint: { 'background-color': COLORS.OCEAN } }],
+      layers: [{ id: 'background', type: 'background', paint: { 'background-color': theme.OCEAN } }],
     },
     center: [0, 20],
     zoom: 2,
@@ -142,9 +144,9 @@ export async function setupMapLayers() {
   }
 
   // Coast, border, outline
-  if (!state.map.getLayer(LYR_COAST)) state.map.addLayer({ id: LYR_COAST, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'coast'], paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.9 } });
-  if (!state.map.getLayer(LYR_BORDER)) state.map.addLayer({ id: LYR_BORDER, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'border'], paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.8 } });
-  if (!state.map.getLayer(LYR_OUTLINE)) state.map.addLayer({ id: LYR_OUTLINE, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'region'], paint: { 'line-color': '#000000', 'line-width': 0.8, 'line-opacity': 0.7 } });
+  if (!state.map.getLayer(LYR_COAST)) state.map.addLayer({ id: LYR_COAST, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'coast'], paint: { 'line-color': '#ffffff', 'line-width': 1.0, 'line-opacity': 0.9 } });
+  if (!state.map.getLayer(LYR_BORDER)) state.map.addLayer({ id: LYR_BORDER, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'border'], paint: { 'line-color': '#ffffff', 'line-width': 1.2, 'line-opacity': 1 } });
+  if (!state.map.getLayer(LYR_OUTLINE)) state.map.addLayer({ id: LYR_OUTLINE, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'region'], paint: { 'line-color': '#000000', 'line-width': 0.4, 'line-opacity': 1 } });
   if (state.map.getLayer(LYR_OUTLINE) && state.map.getLayer(LYR_BORDER)) state.map.moveLayer(LYR_OUTLINE, LYR_BORDER);
 
   initLabelCanvas();
@@ -314,7 +316,35 @@ export function setMapSource(isOriginal) {
   document.getElementById('toggle-borders').checked = isOriginal;
   renderMap();
 }
+export function applyTheme() {
+  const theme = THEMES[state.theme];
+  if (!state.map) return;
 
+  // Oceano / sfondo
+  if (state.map.getLayer('background')) {
+    state.map.setPaintProperty('background', 'background-color', theme.OCEAN);
+  }
+
+  // Colori dei bordi e coste
+  if (state.map.getLayer(LYR_COAST)) {
+    state.map.setPaintProperty(LYR_COAST, 'line-color', theme.COAST_COLOR);
+  }
+  if (state.map.getLayer(LYR_BORDER)) {
+    state.map.setPaintProperty(LYR_BORDER, 'line-color', theme.BORDER_COLOR);
+  }
+  if (state.map.getLayer(LYR_OUTLINE)) {
+    state.map.setPaintProperty(LYR_OUTLINE, 'line-color', theme.OUTLINE_COLOR);
+  }
+
+  // Terre neutre
+  if (state.map.getLayer(LYR_FILL)) {
+    // Aggiorna solo se il layer esiste (verrà comunque ridisegnato da renderMap)
+    state.map.setPaintProperty(LYR_FILL, 'fill-color', theme.NEUTRAL_UNSELECTED);
+  }
+
+  // Forza un refresh completo della mappa
+  renderMap();
+}
 export function setColoringMode(mode) {
   state.coloringMode = mode;
   

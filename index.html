@@ -421,7 +421,7 @@
       font-weight: 700;
     }
 
-    /* ===== MODE BUTTONS (3 pulsanti) ===== */
+    /* ===== MODE BUTTONS ===== */
     .mode-toggle-group {
       display: flex;
       background: #161b22;
@@ -433,7 +433,6 @@
       width: 100%;
     }
 
-    /* Indicatore scorrevole */
     .mode-slider {
       position: absolute;
       left: 3px;
@@ -483,7 +482,6 @@
       color: #e6edf3;
     }
 
-    /* Mobile */
     @media (max-width: 768px) {
       .mode-toggle-group {
         gap: 2px;
@@ -578,12 +576,11 @@
       background: #fff;
     }
 
-    /* Mobile switches */
     @media (max-width: 768px) {
       .switch-container {
         gap: 8px;
       }
-      
+
       .switch-label {
         font-size: 9px;
       }
@@ -1103,24 +1100,328 @@
       color: #00d4ff;
     }
 
+    /* ===== TEMA MAPPA ANTICA (CHIARO CALDO) ===== */
+    body.light-theme {
+      background: #f0e6d2;
+      /* pergamena calda */
+      color: #3e2f1c;
+      /* marrone scuro per il testo */
+    }
+
+    /* Pannelli */
+    body.light-theme .panel {
+      background: rgba(250, 245, 235, 0.97) !important;
+      border-color: #c4b394 !important;
+      color: #3e2f1c !important;
+    }
+
+    /* Hamburger */
+    body.light-theme #hamburger-btn {
+      background: rgba(245, 240, 225, 0.95);
+      border-color: rgba(139, 115, 85, 0.5);
+      color: #5a4325;
+    }
+
+    body.light-theme #hamburger-btn:hover {
+      background: rgba(210, 180, 140, 0.4);
+      color: #2e1f0c;
+    }
+
+    body.light-theme #hamburger-menu {
+      background: rgba(250, 245, 235, 0.98);
+      border-color: #c4b394;
+    }
+
+    body.light-theme .menu-header {
+      border-bottom-color: #c4b394;
+    }
+
+    body.light-theme .menu-section {
+      border-bottom-color: #ddceb2;
+    }
+
+    body.light-theme .menu-header-text {
+      color: #3e2f1c;
+    }
+
+    body.light-theme .menu-header-sub {
+      color: #6b5a47;
+    }
+
+    body.light-theme .section-label {
+      color: #6b5a47;
+    }
+
+    /* Legenda */
+    body.light-theme #dynamic-legend {
+      background: rgba(250, 245, 235, 0.95) !important;
+      border-color: #c4b394 !important;
+    }
+
+    body.light-theme .legend-name {
+      color: #3e2f1c;
+    }
+
+    body.light-theme .legend-desc {
+      color: #6b5a47;
+    }
+
+    body.light-theme .legend-note {
+      color: #8b7a62;
+    }
+
+    body.light-theme .legend-toggle-btn {
+      background: rgba(245, 240, 225, 0.9);
+      border-color: #c4b394;
+      color: #5a4325;
+    }
+
+    body.light-theme .legend-toggle-btn:hover {
+      border-color: #8b5a2b;
+      color: #8b5a2b;
+    }
+
+    /* Input e bottoni */
+    body.light-theme input[type="text"] {
+      background: #fdfaf5;
+      border-color: #c4b394;
+      color: #3e2f1c;
+    }
+
+    body.light-theme input[type="text"]:focus {
+      border-color: #8b5a2b;
+      background: #ffffff;
+    }
+
+    body.light-theme input[type="text"]::placeholder {
+      color: #9b8b7a;
+    }
+
+    body.light-theme .icon-btn.primary {
+      background: #8b5a2b;
+      color: #fff;
+    }
+
+    body.light-theme .icon-btn.secondary {
+      background: #e7dcc8;
+      color: #5a4325;
+    }
+
+    body.light-theme .icon-btn.secondary:hover {
+      background: #d4c0a2;
+      color: #2e1f0c;
+    }
+
+    body.light-theme .nap-add-btn {
+      background: rgba(139, 90, 43, 0.15);
+      border-color: rgba(139, 90, 43, 0.3);
+      color: #8b5a2b;
+    }
+
+    body.light-theme .nap-add-btn:hover {
+      background: rgba(139, 90, 43, 0.25);
+    }
+
+    /* Switch */
+    body.light-theme .slider {
+      background: #d4c0a2;
+      border-color: #b89b7a;
+    }
+
+    body.light-theme .pill-slider {
+      background: #d4c0a2;
+      border-color: #b89b7a;
+    }
+
+    body.light-theme .slider::before,
+    body.light-theme .pill-slider::before {
+      background: #8b7a62;
+    }
+
+    /* NAP items */
+    body.light-theme .nap-item {
+      background: #f5edd9;
+      color: #3e2f1c;
+    }
+
+    body.light-theme .nap-name {
+      color: #3e2f1c;
+    }
+
+    /* Selected nation */
+    body.light-theme #selected-display {
+      background: linear-gradient(135deg, rgba(139, 90, 43, 0.1), rgba(210, 180, 140, 0.15));
+      border-color: rgba(139, 90, 43, 0.3);
+    }
+
+    body.light-theme .selected-nation-name {
+      color: #8b5a2b;
+    }
+
+    body.light-theme .selected-nation-meta {
+      color: #6b5a47;
+    }
+
+    /* Stats bar */
+    body.light-theme .stat-card {
+      background: rgba(250, 245, 235, 0.9);
+      border-color: #c4b394;
+    }
+
+    body.light-theme .stat-card-lbl {
+      color: #6b5a47;
+    }
+
+    body.light-theme #stats-chip {
+      background: rgba(250, 245, 235, 0.9);
+      border-color: #c4b394;
+    }
+
+        /* Toggle pill */
+    body.light-theme #border-toggle-container {
+      background: rgba(240, 230, 210, 0.9);
+      border-color: rgba(139, 115, 85, 0.25);
+    }
+
+    body.light-theme .pill-label {
+      color: #6b5a47;
+    }
+
+    body.light-theme .pill-label.active {
+      color: #8b5a2b;
+    }
+
+    /* Toast */
+    body.light-theme .toast {
+      background: #f5edd9;
+      border-color: #c4b394;
+      color: #3e2f1c;
+    }
+
+    body.light-theme .toast-title {
+      color: #3e2f1c;
+    }
+
+    body.light-theme .toast-msg {
+      color: #6b5a47;
+    }
+
+    /* Mode buttons */
+    body.light-theme .mode-toggle-group {
+      background: #e7dcc8;
+    }
+
+    body.light-theme .mode-btn {
+      color: #5a4325;
+    }
+
+    body.light-theme .mode-btn.active {
+      color: #fff;
+      /* lo sfondo attivo rimane blu di base; se vuoi puoi cambiarlo in marrone */
+    }
+
+    body.light-theme .mode-btn:not(.active):hover {
+      color: #2e1f0c;
+    }
+
+    /* Loading overlay */
+    body.light-theme #loading-overlay {
+      background: rgba(240, 230, 210, 0.96);
+    }
+
+    body.light-theme .loader-title {
+      color: #3e2f1c;
+    }
+
+    body.light-theme .loader-sub {
+      color: #6b5a47;
+    }
+
+    body.light-theme .loader-api {
+      color: #8b7a62;
+    }
+
     /* ===== TOGGLE PILL ===== */
-    #border-toggle-container {
+    /* ===== TOGGLE PILL + TEMA ===== */
+    #top-right-toggles {
       position: fixed;
       top: 20px;
       right: 20px;
       z-index: 1500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    #border-toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       background: rgba(13, 17, 23, 0.85);
       backdrop-filter: blur(12px);
       border: 0.5px solid rgba(0, 212, 255, 0.2);
       border-radius: 24px;
-      padding: 6px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      padding: 4px 12px;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-      pointer-events: auto;
+      white-space: nowrap;
     }
 
+    #theme-toggle-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 0.5px solid rgba(0, 212, 255, 0.2);
+      background: rgba(13, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      color: #ffcc00;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    #theme-toggle-btn:hover {
+      background: rgba(0, 98, 255, 0.15);
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+
+    body.light-theme #border-toggle-container {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(0, 0, 0, 0.1);
+    }
+    body.light-theme #theme-toggle-btn {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(0, 0, 0, 0.2);
+      color: #ff8c00;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    body.light-theme #theme-toggle-btn:hover {
+      background: rgba(0, 98, 255, 0.1);
+      border-color: #0062ff;
+    }
+
+    @media (max-width: 768px) {
+      #top-right-toggles {
+        top: 10px;
+        right: 10px;
+        gap: 6px;
+      }
+      #border-toggle-container {
+        padding: 3px 8px;
+      }
+      #theme-toggle-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+      }
+    }
     .pill-label {
       font-size: 10px;
       font-weight: 600;
@@ -1183,47 +1484,6 @@
       background: #fff;
     }
 
-    /* ===== ZOOM CONTROLS ===== */
-    #zoom-controls {
-      position: fixed;
-      right: 20px;
-      bottom: 120px;
-      z-index: 1500;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .zoom-btn {
-      width: 34px;
-      height: 34px;
-      background: rgba(13, 17, 23, 0.97);
-      border: 0.5px solid #21262d;
-      color: #8b949e;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 18px;
-      font-weight: 300;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(12px);
-      transition: all 0.15s;
-      line-height: 1;
-      user-select: none;
-    }
-
-    .zoom-btn:hover {
-      background: #1c2128;
-      color: #00d4ff;
-      border-color: rgba(0, 212, 255, 0.4);
-    }
-
-    .zoom-divider {
-      width: 34px;
-      height: 0.5px;
-      background: #21262d;
-    }
 
     /* ===== POPUP ===== */
     .maplibregl-popup-content {
@@ -1255,6 +1515,32 @@
       display: none !important;
     }
 
+    /* Pulsante tema (sole/luna) */
+    #theme-toggle-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 0.5px solid rgba(0, 212, 255, 0.2);
+      background: rgba(13, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      color: #ffcc00;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+      padding: 0;
+      line-height: 1;
+    }
+
+    #theme-toggle-btn:hover {
+      background: rgba(0, 98, 255, 0.15);
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+
+
     /* ===== MOBILE ===== */
     @media (max-width: 768px) {
       #legend-container {
@@ -1263,10 +1549,6 @@
       }
 
       #stats-bar {
-        display: none;
-      }
-
-      #zoom-controls {
         display: none;
       }
 
@@ -1300,23 +1582,25 @@
 </head>
 
 <body>
-
-  <!-- TOGGLE BORDERS -->
-  <div id="border-toggle-container">
-    <span id="label-actual" class="pill-label active">Current</span>
-    <div class="pill-switch">
-      <input type="checkbox" id="toggle-borders" />
-      <span class="pill-slider"></span>
+  <!-- TOGGLE BORDERS + THEME -->
+  <div style="position: fixed; top: 20px; right: 20px; z-index: 1500; display: flex; gap: 8px; pointer-events: auto;">
+    <!-- Toggle Current/Original (esistente) -->
+    <div id="border-toggle-container">
+      <span id="label-actual" class="pill-label active">Current</span>
+      <div class="pill-switch">
+        <input type="checkbox" id="toggle-borders" />
+        <span class="pill-slider"></span>
+      </div>
+      <span id="label-original" class="pill-label">Original</span>
     </div>
-    <span id="label-original" class="pill-label">Original</span>
+
+    <!-- Toggle Tema (nuovo) -->
+    <button id="theme-toggle-btn" title="Change theme">
+      <span id="theme-icon">🌙</span>
+    </button>
   </div>
 
-  <!-- ZOOM CONTROLS -->
-  <div id="zoom-controls">
-    <div class="zoom-btn" id="zoomInBtn">+</div>
-    <div class="zoom-divider"></div>
-    <div class="zoom-btn" id="zoomOutBtn">−</div>
-  </div>
+
 
   <!-- LOADING -->
   <div id="loading-overlay">

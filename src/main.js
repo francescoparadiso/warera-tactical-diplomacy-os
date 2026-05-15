@@ -1,13 +1,12 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { state } from './state.js';
 import { hashColor, showLoading, hideLoading } from './utils.js';
-import { showToast } from './ui.js';
-import { initMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
+import { showToast, updateDynamicLegend } from './ui.js';
+import { initMap,renderMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
 import { loadExternalBlocs } from './blocs.js';
 import { loadExternalNaps, aggiungiNap } from './naps.js';
 import { syncUIToState, toggleNapSection, updateExternalNapsUI } from './ui.js';
 import { buildOriginalLabels, loadFlagImage } from './labels.js';
-
 // ==================== CARICAMENTO DATI ====================
 async function refreshData() {
   try {
@@ -67,6 +66,24 @@ async function refreshData() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
+
+document.getElementById('theme-toggle-btn').addEventListener('click', function () {
+  const newTheme = state.theme === 'light' ? 'dark' : 'light';
+  state.theme = newTheme;
+  document.body.classList.toggle('light-theme', newTheme === 'light');
+
+  // Aggiorna icona
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = newTheme === 'light' ? '☀️' : '🌙';
+
+  // Applica il tema alla mappa
+  import('./map.js').then(module => {
+    if (typeof module.applyTheme === 'function') module.applyTheme();
+    if (typeof module.renderMap === 'function') module.renderMap();
+    import('./ui.js').then(ui => ui.updateDynamicLegend());
+  });
+});
+
   // Ricerca
   document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
   document.getElementById('searchBtn').addEventListener('click', cercaNazione);
@@ -134,9 +151,9 @@ function setupEventListeners() {
 async function init() {
   initMap();
   const slider = document.getElementById('mode-slider');
-if (slider) {
-  slider.style.left = '3px'; // Diplomacy è attivo di default
-}
+  if (slider) {
+    slider.style.left = '3px'; // Diplomacy è attivo di default
+  }
   setupEventListeners();
   state.map.on('load', refreshData);
 }
