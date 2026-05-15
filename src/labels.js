@@ -174,6 +174,10 @@ export function drawLabels() {
       if (text) {
         // Posiziona il testo sotto il nome della nazione (circa 18px più in basso)
         const textY = pt.y + 16; 
+            // Contorno spesso per far risaltare il testo su qualsiasi sfondo
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(text, pt.x, textY);
         ctx.fillStyle = color;
         ctx.fillText(text, pt.x, textY);
       }
