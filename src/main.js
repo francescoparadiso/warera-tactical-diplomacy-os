@@ -13,7 +13,7 @@ async function refreshData() {
     showLoading();
     const [resN, resM] = await Promise.all([
       fetch('https://api2.warera.io/trpc/country.getAllCountries'),
-      fetch('https://api4.warera.io/trpc/map.getMapData'),
+      fetch('https://api2.warera.io/trpc/map.getMapData'),
     ]);
     if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
 
