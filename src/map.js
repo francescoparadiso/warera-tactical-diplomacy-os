@@ -8,6 +8,8 @@ import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } 
 import { updateDynamicLegend, updateStats, updateSelectedDisplay } from './ui.js';
 import { buildPopulationColorExpression, buildPopulationTextExpression } from './population.js';
 import { buildWeeklyDamageColorExpression } from './weeklyDamage.js';
+import { initNationTooltip } from './nationTooltip.js';
+import { hide as hideTooltip } from './nationTooltip.js';
 
 const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC } = LAYER_IDS;
 
@@ -131,7 +133,7 @@ export async function setupMapLayers() {
 
   initLabelCanvas();
   preloadAllFlags();
-
+  initNationTooltip(state.map);
   // Click handler
   state.map.off('click', LYR_FILL, _onRegionClick);
   state.map.on('click', LYR_FILL, _onRegionClick);
@@ -145,6 +147,9 @@ export async function setupMapLayers() {
 // ==================== RENDER MAPPA ====================
 export function renderMap() {
   if (!state.map || !state.mapDataGlobal) return;
+    if (!state.selectedCountryId) {
+    hideTooltip();
+  }
   updateDynamicLegend();
   updateStats();
   updateSelectedDisplay();
@@ -244,6 +249,12 @@ function _onRegionClick(e) {
     ? e.features[0].properties.initialCountryId
     : e.features[0].properties.countryId;
   state.selectedCountryId = state.selectedCountryId === cId ? null : cId;
+  if (!state.selectedCountryId) {
+    hideTooltip();
+  }
+    if (!state.selectedCountryId) {
+    import('./nationTooltip.js').then(m => m.hide());
+  }
   renderMap();
   if (window.umami && state.selectedCountryId) {
     const nation = state.nationMap.get(state.selectedCountryId);

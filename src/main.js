@@ -121,18 +121,6 @@ document.getElementById('theme-toggle-btn').addEventListener('click', function (
   document.getElementById('zoomInBtn')?.addEventListener('click', () => { state.map?.zoomIn(); });
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => { state.map?.zoomOut(); });
 
-  // Stats chip (mobile): mostra info della nazione selezionata
-  document.getElementById('stats-chip').addEventListener('click', () => {
-    if (state.selectedCountryId) {
-      const nation = state.nationMap.get(state.selectedCountryId);
-      const allies = document.getElementById('stats-allies').textContent;
-      const wars = document.getElementById('stats-wars').textContent;
-      const naps = document.getElementById('stats-naps').textContent;
-      showToast(`${nation?.name || 'Nation'} | ${allies} allies · ${wars} wars · ${naps} NAPs`, 'info');
-    } else {
-      showToast('Click a nation on the map to select it', 'info');
-    }
-  });
 
   // Hamburger menu
   const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -145,6 +133,22 @@ document.getElementById('theme-toggle-btn').addEventListener('click', function (
     if (!hamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) {
       hamburgerMenu.classList.remove('visible');
     }
+  });
+
+  // Bloc Statistics page
+  document.getElementById('bloc-stats-btn').addEventListener('click', () => {
+    document.getElementById('map').style.display = 'none';
+    document.getElementById('bloc-stats-page').style.display = 'block';
+    // Nascondi anche eventuali overlay se interferiscono
+    import('./blocStats.js').then(m => {
+      const stats = m.computeBlocStats();
+      m.renderBlocStats(stats);
+    });
+  });
+
+  document.getElementById('bloc-stats-close').addEventListener('click', () => {
+    document.getElementById('bloc-stats-page').style.display = 'none';
+    document.getElementById('map').style.display = 'block';
   });
 }
 

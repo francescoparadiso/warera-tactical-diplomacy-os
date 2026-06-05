@@ -190,15 +190,21 @@ function _countExternalNaps() {
 // ==================== STATS ====================
 export function updateStats() {
   const allies = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.allies?.length ?? 0) : 0;
-  const wars = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.warsWith?.length ?? 0) : 0;
-  const naps = state.customNaps.length;
+  const wars   = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.warsWith?.length ?? 0) : 0;
+  const naps   = state.customNaps.length;
 
-  document.getElementById('stats-allies').textContent = allies;
-  document.getElementById('stats-wars').textContent = wars;
-  document.getElementById('stats-naps').textContent = naps;
-  document.getElementById('chip-allies').textContent = allies;
-  document.getElementById('chip-wars').textContent = wars;
-  document.getElementById('chip-naps').textContent = naps;
+  // Helper sicuro: aggiorna SOLO se l'elemento esiste nel DOM
+  const setSafe = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
+  setSafe('stats-allies', allies);
+  setSafe('stats-wars',   wars);
+  setSafe('stats-naps',   naps);
+  setSafe('chip-allies',  allies);
+  setSafe('chip-wars',    wars);
+  setSafe('chip-naps',    naps);
 }
 
 // ==================== SELECTED DISPLAY ====================
