@@ -69,7 +69,7 @@ export function drawLabels() {
     const props  = label.properties;
     const coords = label.coordinates;
     if (!coords) return;
-    if (state.coloringMode === 'blocs' && zoom < 5) return;
+    if (state.coloringMode === 'blocs' && zoom < 3.3) return;
     if (zoom < 2.5 && props.flagSize < 0.15) return;
     if (zoom < 3.5 && props.flagSize < 0.08) return;
     
