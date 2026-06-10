@@ -147,6 +147,7 @@ export async function setupMapLayers() {
 // ==================== RENDER MAPPA ====================
 export function renderMap() {
   if (!state.map || !state.mapDataGlobal) return;
+    if (!state.alliancesList && state.coloringMode === 'blocs') return; 
     if (!state.selectedCountryId) {
     hideTooltip();
   }

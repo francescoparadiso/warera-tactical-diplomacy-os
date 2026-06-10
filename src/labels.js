@@ -69,9 +69,10 @@ export function drawLabels() {
     const props  = label.properties;
     const coords = label.coordinates;
     if (!coords) return;
+    if (state.coloringMode === 'blocs' && zoom < 5) return;
     if (zoom < 2.5 && props.flagSize < 0.15) return;
     if (zoom < 3.5 && props.flagSize < 0.08) return;
-
+    
     const pt = state.map.project([coords[0], coords[1]]);
     if (pt.x < -100 || pt.x > W + 100 || pt.y < -60 || pt.y > H + 60) return;
 
@@ -192,7 +193,7 @@ function _drawBlocLabels(ctx, W, H) {
   const bboxes = [];
   if (!state.externalBlocsInfo.length) return bboxes;
   const zoom     = state.map.getZoom();
-  const fontSize = Math.max(20, Math.min(40, 24 * (1 + (zoom - 2) * 0.2)));
+  const fontSize = Math.max(28, Math.min(56, 32 * (1 + (zoom - 2) * 0.2)));
   ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
   const MARGIN = 30;
 

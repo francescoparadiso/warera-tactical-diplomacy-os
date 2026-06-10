@@ -1,3 +1,7 @@
+// in config.js
+//export const API_BASE_URL = 'https://apidev.warera.io';  // per test
+ export const API_BASE_URL = 'https://api6.warera.io'; // per produzione
+
 export const COLORS = {
   SELECTED: '#ffcc00',
   WAR_DIRECT: '#ff0000',
@@ -68,14 +72,16 @@ export const LAYER_IDS = {
   LYR_BORDER: 'borders-line',
   LYR_MULTI_BLOC: 'multi-bloc-pattern',
 };
-
-export const EXTERNAL_BLOCS_URL =
-  'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
-
 export const EXTERNAL_NAPS_URL =
   'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/warera_naps.csv';
 
-export const HARDCODED_BLOCS = [
+  /*
+export const EXTERNAL_BLOCS_URL =
+  'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
+
+
+
+/*export const HARDCODED_BLOCS = [
   { nome_blocco: 'Olive Union', codici_nazioni: 'IT,HR,HU,GR,TR,IQ,EG,LT', colore: COLORS.ITALIAN_BLOC, label_lng: '30', label_lat: '40' },
   { nome_blocco: 'test', codici_nazioni: 'FR,NL,BE,AR,CL,US', colore: COLORS.WESTERN_BLOC, label_lng: '-70', label_lat: '30' },
   { nome_blocco: 'African Union', codici_nazioni: 'AO,DZ,BJ,BW,BF,BI,CM,CV,CF,KM,CD,DJ,EG,GQ,ET,GA,GM,GH,GN,GW,CI,KE,LS,LR,LY,MW,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SS,SD,SZ,TZ,TG,TN,UG,ZM,ZW', colore: COLORS.AFRICAN_UNION, label_lng: '-10', label_lat: '-20' },
@@ -83,3 +89,4 @@ export const HARDCODED_BLOCS = [
   { nome_blocco: 'ICDP', codici_nazioni: 'RO,DE,UA,RS', colore: COLORS.ICDP, label_lng: '20', label_lat: '52' },
   { nome_blocco: 'Holy League', codici_nazioni: 'CH,VA,JO,LB,ML,CY', colore: COLORS.HOLY_LEAGUE, label_lng: '35', label_lat: '35' },
 ];
+*/

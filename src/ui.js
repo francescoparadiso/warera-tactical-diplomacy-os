@@ -97,15 +97,18 @@ if (state.coloringMode === 'weeklyDamage') {
 }
   if (state.coloringMode === 'blocs') {
     let html = '';
-    state.externalBlocsInfo.forEach(b => {
-      html += `
-        <div class="legend-item">
-          <div class="legend-bar" style="background:${b.color};"></div>
-          <div class="legend-info">
-            <div class="legend-name">${b.name}</div>
-          </div>
-        </div>`;
-    });
+state.externalBlocsInfo.forEach(b => {
+  const alliance = state.alliancesList.find(a => a.name === b.name);
+  const memberCount = alliance ? alliance.memberCountries.length : 0;
+  html += `
+    <div class="legend-item">
+      <div class="legend-bar" style="background:${b.color};"></div>
+      <div class="legend-info">
+        <div class="legend-name">${b.name}</div>
+        <div class="legend-desc">${memberCount} nations</div>
+      </div>
+    </div>`;
+});
     const multi = [...state.multiBlocMap.values()];
     if (multi.length) {
       html += `

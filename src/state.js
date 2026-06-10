@@ -22,4 +22,7 @@ export const state = {
   labelCanvas: null,
   theme: 'dark',
   labelCtx: null,
+  alliancesList: [],           // array completo delle alleanze ricevute dall'API
+  allianceColorMap: new Map(), // allianceId -> colore assegnato
+  nationAlliancesMap: new Map(), // countryId -> Set di allianceId
 };

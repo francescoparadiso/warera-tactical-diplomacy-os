@@ -2,18 +2,19 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { state } from './state.js';
 import { hashColor, showLoading, hideLoading } from './utils.js';
 import { showToast, updateDynamicLegend } from './ui.js';
-import { initMap,renderMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
-import { loadExternalBlocs } from './blocs.js';
+import { initMap, renderMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
+//import { loadExternalBlocs } from './blocs.js';
 import { loadExternalNaps, aggiungiNap } from './naps.js';
 import { syncUIToState, toggleNapSection, updateExternalNapsUI } from './ui.js';
 import { buildOriginalLabels, loadFlagImage } from './labels.js';
+import { API_BASE_URL } from './config.js';
 // ==================== CARICAMENTO DATI ====================
 async function refreshData() {
   try {
     showLoading();
     const [resN, resM] = await Promise.all([
-      fetch('https://api2.warera.io/trpc/country.getAllCountries'),
-      fetch('https://api2.warera.io/trpc/map.getMapData'),
+      fetch(`${API_BASE_URL}/trpc/country.getAllCountries`),
+      fetch(`${API_BASE_URL}/trpc/map.getMapData`),
     ]);
     if (!resN.ok || !resM.ok) throw new Error('Failed to fetch data');
 
@@ -26,8 +27,39 @@ async function refreshData() {
     state.nationMap.clear();
     state.nazioniGlobal.forEach(n => state.nationMap.set(n._id, n));
 
-    await loadExternalBlocs();
-    await loadExternalNaps();
+    // ----- CARICAMENTO ALLEANZE CON GET BATCH (formato corretto) -----
+    const uniqueAllianceIds = [...new Set(
+      state.nazioniGlobal
+        .map(nation => nation.allianceId)
+        .filter(id => id != null)
+    )];
+
+    let alliances = [];
+    if (uniqueAllianceIds.length > 0) {
+      // Crea la stringa con i nomi delle procedure ripetuti
+      const procedureNames = uniqueAllianceIds.map(() => 'alliance.getById').join(',');
+      // Costruisce l'oggetto input: { "0": { allianceId: id1 }, "1": { allianceId: id2 }, ... }
+      const batchInput = {};
+      uniqueAllianceIds.forEach((id, idx) => {
+        batchInput[idx] = { allianceId: id };
+      });
+
+      const url = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Batch request failed: ${res.status}`);
+      const results = await res.json();
+      // results è un array di oggetti con { result: { data: {...} } }
+      alliances = results.map(item => item.result.data);
+    }
+
+    state.alliancesList = alliances;
+    state.allianceColorMap.clear();
+    state.nationAlliancesMap.clear();
+
+    import('./alliances.js').then(module => {
+      module.processAlliancesData(alliances);
+    });
+    // ----- FINE CARICAMENTO ALLEANZE -----
 
     // Datalist autocomplete
     const datalist = document.getElementById('nazioniList');
@@ -67,22 +99,22 @@ async function refreshData() {
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
 
-document.getElementById('theme-toggle-btn').addEventListener('click', function () {
-  const newTheme = state.theme === 'light' ? 'dark' : 'light';
-  state.theme = newTheme;
-  document.body.classList.toggle('light-theme', newTheme === 'light');
+  document.getElementById('theme-toggle-btn').addEventListener('click', function () {
+    const newTheme = state.theme === 'light' ? 'dark' : 'light';
+    state.theme = newTheme;
+    document.body.classList.toggle('light-theme', newTheme === 'light');
 
-  // Aggiorna icona
-  const icon = document.getElementById('theme-icon');
-  if (icon) icon.textContent = newTheme === 'light' ? '☀️' : '🌙';
+    // Aggiorna icona
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.textContent = newTheme === 'light' ? '☀️' : '🌙';
 
-  // Applica il tema alla mappa
-  import('./map.js').then(module => {
-    if (typeof module.applyTheme === 'function') module.applyTheme();
-    if (typeof module.renderMap === 'function') module.renderMap();
-    import('./ui.js').then(ui => ui.updateDynamicLegend());
+    // Applica il tema alla mappa
+    import('./map.js').then(module => {
+      if (typeof module.applyTheme === 'function') module.applyTheme();
+      if (typeof module.renderMap === 'function') module.renderMap();
+      import('./ui.js').then(ui => ui.updateDynamicLegend());
+    });
   });
-});
 
   // Ricerca
   document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
