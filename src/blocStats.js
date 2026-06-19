@@ -636,6 +636,18 @@ function renderWars() {
     <span style="margin-left:auto;font-weight:600;color:${color}">${val}</span>
   </div>`;
 
+  // ── Classifiche alleanze ──
+  const aligned = allStats.filter(b => !b.isUnaligned);
+  const blocRow = (b, val, color) => `<div class="bs-wi">
+    <div style="width:10px;height:10px;border-radius:50%;background:${b.color};flex-shrink:0"></div>
+    <span style="font-weight:600">${b.name}</span>
+    <span style="color:#8b949e;font-size:12px">${b.countryCount} nations</span>
+    <span style="margin-left:auto;font-weight:600;color:${color}">${val}</span>
+  </div>`;
+
+  const topBlocWars   = [...aligned].sort((a,b) => b.totalWars - a.totalWars).slice(0, 10);
+  const topBlocDmg    = [...aligned].sort((a,b) => b.totalDmg - a.totalDmg).slice(0, 10);
+
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
       <div class="bs-wsec">
@@ -645,6 +657,16 @@ function renderWars() {
       <div class="bs-wsec">
         <h3 style="margin:0 0 10px">Top Allies</h3>
         ${topAllies.map(m => statRow(m, `🤝 ${m.allies}`, '#3fb950')).join('')}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div class="bs-wsec">
+        <h3 style="margin:0 0 10px">🏆 Alliance Ranking — Wars</h3>
+        ${topBlocWars.map(b => blocRow(b, `⚔️ ${b.totalWars}`, '#f85149')).join('') || '<p style="color:#8b949e">No data</p>'}
+      </div>
+      <div class="bs-wsec">
+        <h3 style="margin:0 0 10px">🏆 Alliance Ranking — Weekly Dmg</h3>
+        ${topBlocDmg.map(b => blocRow(b, fmt(b.totalDmg), '#58a6ff')).join('') || '<p style="color:#8b949e">No data</p>'}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
