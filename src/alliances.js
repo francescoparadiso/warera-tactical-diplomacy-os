@@ -63,6 +63,33 @@ function getBaseAllianceColor(ally) {
   return `hsl(${Math.abs(hash) % 360}, 55%, 45%)`;
 }
 
+// ==================== MEDIANA GEOMETRICA (robusta agli outlier) ====================
+// A differenza della media aritmetica, questo punto minimizza la somma delle
+// distanze da tutti i membri: resta vicino al cluster più numeroso anche se
+// ci sono nazioni isolate molto lontane (es. 10 in Europa + 2 in Sudamerica).
+function geometricMedian(points, iterations = 60) {
+  if (!points.length) return null;
+  if (points.length === 1) return points[0];
+
+  let x = points.reduce((s, p) => s + p[0], 0) / points.length;
+  let y = points.reduce((s, p) => s + p[1], 0) / points.length;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    let numX = 0, numY = 0, denom = 0;
+    for (const [px, py] of points) {
+      const d = Math.hypot(px - x, py - y) || 1e-6;
+      numX += px / d;
+      numY += py / d;
+      denom += 1 / d;
+    }
+    if (denom === 0) break;
+    const nx = numX / denom, ny = numY / denom;
+    if (Math.abs(nx - x) < 1e-6 && Math.abs(ny - y) < 1e-6) { x = nx; y = ny; break; }
+    x = nx; y = ny;
+  }
+  return [x, y];
+}
+
 // Questa è la funzione chiamata da refreshData
 export function processAlliancesData(alliances) {
   // Se non ci sono alleanze, pulisci tutto
@@ -103,21 +130,26 @@ for (const ally of alliances) {
   }
 
   // 3. Crea externalBlocsInfo per la legenda
-state.externalBlocsInfo = alliances.map(ally => {
-  const memberIds = ally.memberCountries.map(m => m.country);
-  const coords = memberIds
-    .map(id => state.labelsData.find(l => l.properties.countryId === id)?.coordinates)
-    .filter(Boolean);
-  const labelLng = coords.length ? coords.reduce((s, c) => s + c[0], 0) / coords.length : null;
-  const labelLat = coords.length ? coords.reduce((s, c) => s + c[1], 0) / coords.length : null;
-  return {
-    id: ally._id,
-    name: ally.name,
-    color: state.allianceColorMap.get(ally._id),
-    labelLng,
-    labelLat,
-  };
-});
+  // La posizione della label usa la mediana geometrica dei membri (non la
+  // media aritmetica), così resta vicina al cluster più numeroso anche in
+  // presenza di membri isolati molto lontani (es. Europa + outlier in Africa).
+  state.externalBlocsInfo = alliances.map(ally => {
+    const memberIds = ally.memberCountries.map(m => m.country);
+    const coords = memberIds
+      .map(id => state.labelsData.find(l => l.properties.countryId === id)?.coordinates)
+      .filter(Boolean);
+
+    const median = coords.length ? geometricMedian(coords) : null;
+
+    return {
+      id: ally._id,
+      name: ally.name,
+      color: state.allianceColorMap.get(ally._id),
+      labelLng: median ? median[0] : null,
+      labelLat: median ? median[1] : null,
+      memberCount: memberIds.length, // usato per la priorità nel posizionamento label
+    };
+  });
 
   // 4. Costruisci blocColorMap (colore singolo) e multiBlocMap (pattern)
   state.blocColorMap.clear();

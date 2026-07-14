@@ -1,18 +1,26 @@
+// map.js
 import maplibregl from 'maplibre-gl';
 import * as topojson from 'topojson-client';
 import { state } from './state.js';
 import { COLORS, LAYER_IDS, THEMES } from './config.js';
-import { buildMultiBlocPatternExpression, getMultiBlocPatternExpression, getMultiBlocPatternExpressionOriginal } from './patterns.js';
-import { buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalBlocColorExpression, buildOriginalColorExpression, getIndirectAllies, getEnemyAllies } from './diplomacy.js';
+import {
+  buildMultiBlocPatternExpression, getMultiBlocPatternExpression, getMultiBlocPatternExpressionOriginal,
+  preloadDiplomacyDualPattern, DIPLOMACY_DUAL_PATTERN_KEY,
+} from './patterns.js';
+import {
+  buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalBlocColorExpression, buildOriginalColorExpression,
+  getIndirectAllies, getEnemyAllies, getAllianceAllies, getDefensivePactAllies, getDualAllyDefensiveIds,
+} from './diplomacy.js';
 import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } from './labels.js';
 import { updateDynamicLegend, updateStats, updateSelectedDisplay } from './ui.js';
 import { buildPopulationColorExpression, buildPopulationTextExpression } from './population.js';
 import { buildWeeklyDamageColorExpression } from './weeklyDamage.js';
+import { buildSphereColorExpression } from './sphereOfInfluence.js';
+import { buildBattleHeatmapColorExpression } from './battleHeatmap.js';
 import { initNationTooltip } from './nationTooltip.js';
 import { hide as hideTooltip } from './nationTooltip.js';
 
-const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC } = LAYER_IDS;
-
+const { SRC_REGIONS, SRC_BORDERS, SRC_LABELS, LYR_FILL, LYR_OUTLINE, LYR_COAST, LYR_BORDER, LYR_MULTI_BLOC, LYR_DIPLOMACY_DUAL } = LAYER_IDS;
 
 // ==================== INIT MAPPA ====================
 export function initMap() {
@@ -33,12 +41,12 @@ export function initMap() {
     attributionControl: false,
   });
 }
+
 function _buildLabelsWithPopulation() {
   const source = state.mapSource === 'original' ? state.originalLabelsData : state.labelsData;
   if (!source?.length) return [];
-
   return source.map(l => {
-    const cId = state.mapSource === 'original' ? l.properties.countryId : l.properties.countryId;
+    const cId = l.properties.countryId;
     const nation = state.nationMap.get(cId);
     const pop = nation?.rankings?.countryActivePopulation?.value;
     let popText = '';
@@ -52,13 +60,15 @@ function _buildLabelsWithPopulation() {
     };
   });
 }
+
 // ==================== SETUP LAYER ====================
 export async function setupMapLayers() {
   const topoData = state.mapDataGlobal.map;
   state.baseGeoJSON = topojson.feature(topoData, topoData.objects.regions);
   state.labelsData = state.mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
 
-  // Sorgenti
+  computeCentroids();
+
   _addOrUpdateSource(SRC_REGIONS, { type: 'geojson', data: state.baseGeoJSON });
 
   const bordersMesh = topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
@@ -77,38 +87,21 @@ export async function setupMapLayers() {
     },
   });
 
-  // Arricchisci le label con la popolazione
-  const labelsFeatures = state.labelsData.map(l => {
-    const nation = state.nationMap.get(l.properties.countryId);
-    const pop = nation?.rankings?.countryActivePopulation?.value;
-    let popText = '';
-    if (typeof pop === 'number' && pop > 0) {
-      popText = pop >= 1_000_000 ? (pop / 1_000_000).toFixed(1) + 'M' : pop.toLocaleString();
-    }
-    return {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: l.coordinates },
-      properties: { ...l.properties, populationText: popText }
-    };
-  });
-
   _addOrUpdateSource(SRC_LABELS, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: _buildLabelsWithPopulation() },
   });
 
-  // Layer fill principale
   if (!state.map.getLayer(LYR_FILL)) {
     state.map.addLayer({ id: LYR_FILL, type: 'fill', source: SRC_REGIONS, paint: { 'fill-color': COLORS.NEUTRAL_UNSELECTED, 'fill-opacity': 0.9 } });
   }
 
-  // Bordi originali
   if (!state.map.getSource('original-borders-src')) {
     const origMesh = _getOriginalBordersMesh(topoData);
     state.map.addSource('original-borders-src', { type: 'geojson', data: origMesh });
     state.map.addLayer({ id: 'original-borders-line', type: 'line', source: 'original-borders-src', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 }, layout: { visibility: 'none' } });
   }
-  // Layer multi-bloc actual
+
   if (!state.map.getLayer(LYR_MULTI_BLOC)) {
     state.map.addLayer({
       id: LYR_MULTI_BLOC, type: 'fill', source: SRC_REGIONS,
@@ -116,7 +109,6 @@ export async function setupMapLayers() {
       layout: { visibility: 'none' }, paint: { 'fill-opacity': 0.92 },
     });
   }
-  // Layer multi-bloc original
   if (!state.map.getLayer('multi-bloc-pattern-original')) {
     state.map.addLayer({
       id: 'multi-bloc-pattern-original', type: 'fill', source: SRC_REGIONS,
@@ -125,7 +117,14 @@ export async function setupMapLayers() {
     });
   }
 
-  // Coast, border, outline
+  if (!state.map.getLayer(LYR_DIPLOMACY_DUAL)) {
+    state.map.addLayer({
+      id: LYR_DIPLOMACY_DUAL, type: 'fill', source: SRC_REGIONS,
+      filter: ['==', ['get', 'countryId'], '___none___'],
+      layout: { visibility: 'none' }, paint: { 'fill-opacity': 0.92 },
+    });
+  }
+
   if (!state.map.getLayer(LYR_COAST)) state.map.addLayer({ id: LYR_COAST, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'coast'], paint: { 'line-color': '#ffffff', 'line-width': 1.0, 'line-opacity': 0.9 } });
   if (!state.map.getLayer(LYR_BORDER)) state.map.addLayer({ id: LYR_BORDER, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'border'], paint: { 'line-color': '#ffffff', 'line-width': 1.2, 'line-opacity': 1 } });
   if (!state.map.getLayer(LYR_OUTLINE)) state.map.addLayer({ id: LYR_OUTLINE, type: 'line', source: SRC_BORDERS, filter: ['==', ['get', 'kind'], 'region'], paint: { 'line-color': '#000000', 'line-width': 0.4, 'line-opacity': 1 } });
@@ -134,32 +133,42 @@ export async function setupMapLayers() {
   initLabelCanvas();
   preloadAllFlags();
   initNationTooltip(state.map);
-  // Click handler
-  state.map.off('click', LYR_FILL, _onRegionClick);
-  state.map.on('click', LYR_FILL, _onRegionClick);
+state.map.on('click', (e) => {
+  // Se siamo in battleHeatmap
+  if (state.coloringMode === 'battleHeatmap') {
+    // Controlla se il click è su un marker di battaglia
+    const target = e.originalEvent?.target;
+    const isMarker = target && target.closest && target.closest('.battle-marker');
+    
+    // Se NON è un marker, esci dalla heatmap
+    if (!isMarker) {
+      import('./battleHeatmap.js').then(m => m.exitBattleHeatmap());
+    }
+  }
+});
+  state.map.on('click', LYR_FILL, _onRegionClick)
   state.map.on('mouseenter', LYR_FILL, () => { state.map.getCanvas().style.cursor = 'pointer'; });
   state.map.on('mouseleave', LYR_FILL, () => { state.map.getCanvas().style.cursor = ''; });
 
   await buildMultiBlocPatternExpression();
+  await preloadDiplomacyDualPattern();
   renderMap();
 }
 
 // ==================== RENDER MAPPA ====================
 export function renderMap() {
   if (!state.map || !state.mapDataGlobal) return;
-    if (!state.alliancesList && state.coloringMode === 'blocs') return; 
-    if (!state.selectedCountryId) {
+  if (!state.alliancesList && state.coloringMode === 'blocs') return;
+  if (!state.selectedCountryId) {
     hideTooltip();
   }
   updateDynamicLegend();
   updateStats();
   updateSelectedDisplay();
 
-  // Visibilità bordi
   _setLayerVisibility(LYR_BORDER, state.mapSource === 'actual');
   _setLayerVisibility('original-borders-line', state.mapSource === 'original');
 
-  // Layer multi-bloc
   const multiIds = [...state.multiBlocMap.keys()];
   if (state.coloringMode === 'blocs' && multiIds.length > 0) {
     if (state.mapSource === 'original') {
@@ -179,27 +188,46 @@ export function renderMap() {
     _setLayerVisibility('multi-bloc-pattern-original', false);
   }
 
-  // Calcolo diplomazia
+  let dualIds = [];
+  if (state.coloringMode === 'diplomacy' && state.selectedCountryId) {
+    dualIds = getDualAllyDefensiveIds(state.selectedCountryId);
+  }
+  if (state.coloringMode === 'diplomacy' && dualIds.length > 0) {
+    const propKey = state.mapSource === 'original' ? 'initialCountryId' : 'countryId';
+    state.map.setFilter(LYR_DIPLOMACY_DUAL, ['in', ['get', propKey], ['literal', dualIds]]);
+    state.map.setPaintProperty(LYR_DIPLOMACY_DUAL, 'fill-pattern', DIPLOMACY_DUAL_PATTERN_KEY);
+    _setLayerVisibility(LYR_DIPLOMACY_DUAL, true);
+  } else {
+    _setLayerVisibility(LYR_DIPLOMACY_DUAL, false);
+  }
+
   const isExtended = document.getElementById('checkExtended').checked;
   let directWars = [], directAllies = [], indirectAllies = [], enemyAllies = [];
   if (state.coloringMode === 'diplomacy' && state.selectedCountryId) {
     const target = state.nationMap.get(state.selectedCountryId);
     if (target) {
-      directWars = target.warsWith || [];
-      directAllies = target.allies || [];
+      directWars = [...(target.warsWith || [])];
+      const dipl = state.diplomacyData.get(state.selectedCountryId);
+      if (dipl?.swornEnemy) directWars.push(dipl.swornEnemy);
+      directWars = [...new Set(directWars)];
+
+      directAllies = getAllianceAllies(state.selectedCountryId);
       indirectAllies = getIndirectAllies(state.selectedCountryId);
       enemyAllies = getEnemyAllies(state.selectedCountryId);
     }
   }
 
-  // Fill color expression
   let fillExpr;
   if (state.coloringMode === 'population') {
     fillExpr = buildPopulationColorExpression(state.mapSource === 'original');
   } else if (state.coloringMode === 'weeklyDamage') {
     fillExpr = buildWeeklyDamageColorExpression(state.mapSource === 'original');
+  } else if (state.coloringMode === 'sphereOfInfluence') {
+    fillExpr = buildSphereColorExpression(state.mapSource === 'original');
   } else if (state.coloringMode === 'blocs') {
     fillExpr = state.mapSource === 'actual' ? buildBlocColorExpression() : buildOriginalBlocColorExpression();
+  } else if (state.coloringMode === 'battleHeatmap') {
+    fillExpr = buildBattleHeatmapColorExpression(state.mapSource === 'original');
   } else if (state.mapSource === 'actual') {
     const styleMap = {};
     state.labelsData.forEach(l => { if (l.properties?.countryId) styleMap[l.properties.countryId] = l.properties.strokeColor; });
@@ -213,7 +241,6 @@ export function renderMap() {
     state.map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
   }
 
-  // AGGIORNARE la sorgente delle label ogni volta
   if (state.map.getSource(SRC_LABELS)) {
     state.map.getSource(SRC_LABELS).setData({
       type: 'FeatureCollection',
@@ -253,14 +280,40 @@ function _onRegionClick(e) {
   if (!state.selectedCountryId) {
     hideTooltip();
   }
-    if (!state.selectedCountryId) {
-    import('./nationTooltip.js').then(m => m.hide());
-  }
   renderMap();
   if (window.umami && state.selectedCountryId) {
     const nation = state.nationMap.get(state.selectedCountryId);
     if (nation) umami.track('nation-click', { nation: nation.name });
   }
+}
+
+// ==================== CENTROIDI (per battle markers) ====================
+function computeCentroids() {
+  state.centroids.clear();
+  if (!state.baseGeoJSON) return;
+  const flattenCoords = (geometry) => {
+    const result = [];
+    function extract(c) {
+      if (!c) return;
+      if (typeof c[0] === 'number') result.push(c);
+      else c.forEach(extract);
+    }
+    extract(geometry.coordinates);
+    return result;
+  };
+
+  state.baseGeoJSON.features.forEach(f => {
+    const initId = f.properties?.initialCountryId;
+    const curId = f.properties?.countryId;
+    if (!initId && !curId) return;
+    const coords = flattenCoords(f.geometry);
+    if (!coords.length) return;
+    let sumLng = 0, sumLat = 0;
+    coords.forEach(coord => { sumLng += coord[0]; sumLat += coord[1]; });
+    const c = [sumLng / coords.length, sumLat / coords.length];
+    if (curId && !state.centroids.has(curId)) state.centroids.set(curId, c);
+    if (initId && !state.centroids.has(initId)) state.centroids.set(initId, c);
+  });
 }
 
 // ==================== RICERCA E RESET ====================
@@ -303,16 +356,13 @@ export function setMapSource(isOriginal) {
   document.getElementById('toggle-borders').checked = isOriginal;
   renderMap();
 }
+
 export function applyTheme() {
   const theme = THEMES[state.theme];
   if (!state.map) return;
-
-  // Oceano / sfondo
   if (state.map.getLayer('background')) {
     state.map.setPaintProperty('background', 'background-color', theme.OCEAN);
   }
-
-  // Colori dei bordi e coste
   if (state.map.getLayer(LYR_COAST)) {
     state.map.setPaintProperty(LYR_COAST, 'line-color', theme.COAST_COLOR);
   }
@@ -322,47 +372,76 @@ export function applyTheme() {
   if (state.map.getLayer(LYR_OUTLINE)) {
     state.map.setPaintProperty(LYR_OUTLINE, 'line-color', theme.OUTLINE_COLOR);
   }
-
-  // Terre neutre
   if (state.map.getLayer(LYR_FILL)) {
-    // Aggiorna solo se il layer esiste (verrà comunque ridisegnato da renderMap)
     state.map.setPaintProperty(LYR_FILL, 'fill-color', theme.NEUTRAL_UNSELECTED);
   }
-
-  // Forza un refresh completo della mappa
   renderMap();
 }
+
+// map.js - sostituisci la funzione setColoringMode
+
 export function setColoringMode(mode) {
   state.coloringMode = mode;
-
+  
+  // Aggiorna i pulsanti della prima riga
   document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
   document.getElementById('mode-blocs').classList.toggle('active', mode === 'blocs');
-  document.getElementById('mode-population').classList.toggle('active', mode === 'population');
+  document.getElementById('mode-sphereOfInfluence')?.classList.toggle('active', mode === 'sphereOfInfluence');
+  
+  // Aggiorna i pulsanti della seconda riga
   document.getElementById('mode-weeklyDamage').classList.toggle('active', mode === 'weeklyDamage');
-
-  const slider = document.getElementById('mode-slider');
-  if (slider) {
+  document.getElementById('mode-population').classList.toggle('active', mode === 'population');
+  
+  // Slider prima riga (3 pulsanti: diplomacy, blocs, sphere)
+  const sliderTop = document.getElementById('mode-slider');
+  if (sliderTop) {
     const isMobile = window.innerWidth <= 768;
-    const positions = isMobile
-      ? {
-        diplomacy: '2px',
-        blocs: 'calc(25% + 0.5px)',
-        population: 'calc(50% + 0.5px)',
-        weeklyDamage: 'calc(75% - 1px)'
+    const positions = {
+      diplomacy: isMobile ? '2px' : '3px',
+      blocs: isMobile ? 'calc(33.33% + 0.5px)' : 'calc(33.33% + 0.6px)',
+      sphereOfInfluence: isMobile ? 'calc(66.66% + 0.5px)' : 'calc(66.66% + 0.6px)'
+    };
+    // Per i modi della seconda riga, nascondi lo slider o mettilo in una posizione neutra
+    if (mode === 'weeklyDamage' || mode === 'population') {
+      sliderTop.style.opacity = '0.3';
+    } else {
+      sliderTop.style.opacity = '1';
+      sliderTop.style.left = positions[mode] || '3px';
+    }
+  }
+  
+  // Slider seconda riga (2 pulsanti: weeklyDamage, population)
+  const sliderBottom = document.getElementById('mode-slider-bottom');
+  if (sliderBottom) {
+    const isMobile = window.innerWidth <= 768;
+    const positions = {
+      weeklyDamage: isMobile ? '2px' : '3px',
+      population: isMobile ? 'calc(50% + 0.5px)' : 'calc(50% + 0.6px)'
+    };
+    if (mode === 'weeklyDamage' || mode === 'population') {
+      sliderBottom.style.opacity = '1';
+      sliderBottom.style.left = positions[mode] || '3px';
+    } else {
+      sliderBottom.style.opacity = '0.3';
+      // Rimani nella posizione precedente o nascondi
+      if (state._lastBottomMode) {
+        sliderBottom.style.left = positions[state._lastBottomMode] || '3px';
       }
-      : {
-        diplomacy: '3px',
-        blocs: 'calc(25% + 1.5px)',
-        population: 'calc(50% + 0px)',
-        weeklyDamage: 'calc(75% - 2px)'
-      };
-    slider.style.left = positions[mode] || '3px';
+    }
+    // Salva l'ultimo modo della seconda riga
+    if (mode === 'weeklyDamage' || mode === 'population') {
+      state._lastBottomMode = mode;
+    }
   }
-
-  if (mode === 'damage') {
-    // gestione damage layer già presente
-  } else {
-    if (state.damageLayerActive) { /* ... */ }
-    renderMap();
-  }
+  
+  // Assicura che le modalità siano attive correttamente
+  const topModes = ['diplomacy', 'blocs', 'sphereOfInfluence'];
+  const bottomModes = ['weeklyDamage', 'population'];
+  
+  // Reset visivo per tutti i pulsanti
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    // I pulsanti sono gestiti dai toggle individuali sopra
+  });
+  
+  renderMap();
 }

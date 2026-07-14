@@ -1,4 +1,6 @@
+// patterns.js
 import { state } from './state.js';
+import { COLORS } from './config.js';
 
 export function createBlendPattern(colors, seed, sz = 16) {
   const canvas = document.createElement('canvas');
@@ -86,4 +88,13 @@ function _makePatternExpr(entries, propKey) {
   const [firstId, { colors: firstColors }] = entries[0];
   expr.push(`stripe-${firstId}-${firstColors.join('-')}`);
   return expr;
+}
+
+// ==================== PATTERN FISSO: ALLEATO + PATTO DIFENSIVO ====================
+// Usato per evidenziare con un doppio colore le nazioni che sono sia membri
+// dello stesso blocco/alleanza, sia legate da un patto difensivo.
+export const DIPLOMACY_DUAL_PATTERN_KEY = 'diplomacy-dual-ally-defensive';
+
+export function preloadDiplomacyDualPattern() {
+  return preloadPatternImage(DIPLOMACY_DUAL_PATTERN_KEY, [COLORS.ALLY_DIRECT, COLORS.DEFENSIVE_PACT], 7);
 }

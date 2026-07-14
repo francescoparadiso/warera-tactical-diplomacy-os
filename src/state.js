@@ -1,4 +1,4 @@
-// Stato globale centralizzato dell'applicazione
+// state.js
 export const state = {
   map: null,
   nazioniGlobal: [],
@@ -15,14 +15,24 @@ export const state = {
   baseGeoJSON: null,
   originalLabelsData: [],
   labelsData: [],
-  mapSource: 'actual',       // 'actual' | 'original'
-  coloringMode: 'diplomacy', // 'diplomacy' | 'blocs' | 'population' | 'weeklyDamage'
+  mapSource: 'actual',
+  coloringMode: 'diplomacy',
   patternImageCache: new Map(),
   flagImageCache: new Map(),
   labelCanvas: null,
   theme: 'dark',
   labelCtx: null,
-  alliancesList: [],           // array completo delle alleanze ricevute dall'API
-  allianceColorMap: new Map(), // allianceId -> colore assegnato
-  nationAlliancesMap: new Map(), // countryId -> Set di allianceId
+  alliancesList: [],
+  allianceColorMap: new Map(),
+  nationAlliancesMap: new Map(),
+  sphereMap: new Map(),
+  spherePrimaries: new Set(),
+  sphereInfo: [],
+  diplomacyData: new Map(),
+  centroids: new Map(),
+  battleHeatmapData: null,
+  regionData: null,
+  regionCache: new Map(), // regionId → { position: [lng,lat], name: string }
+  previousColoringMode: 'diplomacy',
+
 };

@@ -1,6 +1,8 @@
-// in config.js
+// config.js
 //export const API_BASE_URL = 'https://apidev.warera.io';  // per test
- export const API_BASE_URL = 'https://api6.warera.io'; // per produzione
+export const API_BASE_URL = 'https://api6.warera.io'; // per produzione
+export const CACHE_API_BASE_URL = 'https://gateway.warerastats.io'
+export const API_KEY = 'wae_ea8085c61df10b92478347cecfeb7006844f1fb0e0e066ee462665e471141849';
 
 export const COLORS = {
   SELECTED: '#ffcc00',
@@ -19,7 +21,11 @@ export const COLORS = {
   ASIAN_FEDERATION: '#8e44ad',
   ICDP: '#c0392b',
   HOLY_LEAGUE: '#FFD700',
+  // Nuovi colori
+  DEFENSIVE_PACT: '#9b59b6', // viola
+  SWORN_ENEMY: '#e67e22',    // arancione
 };
+
 export const THEMES = {
   dark: {
     OCEAN: '#00042679',
@@ -57,11 +63,12 @@ export const THEMES = {
     SWITCH_BORDER: '#bbbbbb',
     LEGEND_BG: 'rgba(255,255,255,0.95)',
     LEGEND_BORDER: '#cccccc',
-    COAST_COLOR: '#000000',   // marroncino chiaro, come i pulsanti
+    COAST_COLOR: '#000000',
     BORDER_COLOR: '#000000',
     OUTLINE_COLOR: '#000000',
   }
-}
+};
+
 export const LAYER_IDS = {
   SRC_REGIONS: 'regions-src',
   SRC_BORDERS: 'borders-src',
@@ -71,22 +78,11 @@ export const LAYER_IDS = {
   LYR_COAST: 'regions-coast',
   LYR_BORDER: 'borders-line',
   LYR_MULTI_BLOC: 'multi-bloc-pattern',
+  LYR_DIPLOMACY_DUAL: 'diplomacy-dual-pattern',
 };
+
 export const EXTERNAL_NAPS_URL =
   'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/warera_naps.csv';
 
-  /*
-export const EXTERNAL_BLOCS_URL =
-  'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/AllianceBlocs.csv';
-
-
-
-/*export const HARDCODED_BLOCS = [
-  { nome_blocco: 'Olive Union', codici_nazioni: 'IT,HR,HU,GR,TR,IQ,EG,LT', colore: COLORS.ITALIAN_BLOC, label_lng: '30', label_lat: '40' },
-  { nome_blocco: 'test', codici_nazioni: 'FR,NL,BE,AR,CL,US', colore: COLORS.WESTERN_BLOC, label_lng: '-70', label_lat: '30' },
-  { nome_blocco: 'African Union', codici_nazioni: 'AO,DZ,BJ,BW,BF,BI,CM,CV,CF,KM,CD,DJ,EG,GQ,ET,GA,GM,GH,GN,GW,CI,KE,LS,LR,LY,MW,MR,MU,MA,MZ,NA,NE,NG,RW,ST,SN,SC,SL,SS,SD,SZ,TZ,TG,TN,UG,ZM,ZW', colore: COLORS.AFRICAN_UNION, label_lng: '-10', label_lat: '-20' },
-  { nome_blocco: 'Asian Federation', codici_nazioni: 'BT,BN,CN,TL,EG,FJ,IN,IQ,PS,PG,PH,TR,KP,VN,VU', colore: COLORS.ASIAN_FEDERATION, label_lng: '90', label_lat: '-15' },
-  { nome_blocco: 'ICDP', codici_nazioni: 'RO,DE,UA,RS', colore: COLORS.ICDP, label_lng: '20', label_lat: '52' },
-  { nome_blocco: 'Holy League', codici_nazioni: 'CH,VA,JO,LB,ML,CY', colore: COLORS.HOLY_LEAGUE, label_lng: '35', label_lat: '35' },
-];
-*/
+export const EXTERNAL_SPHERE_URL =
+  'https://raw.githubusercontent.com/francescoparadiso/warera-tactical-diplomacy-os/refs/heads/main/SphereOfInfluence.csv';

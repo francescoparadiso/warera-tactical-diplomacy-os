@@ -1,3 +1,4 @@
+import { API_KEY } from './config.js';
 // ==================== CSV ====================
 function parseLine(line) {
   const result = [];
@@ -12,7 +13,91 @@ function parseLine(line) {
   result.push(current.trim());
   return result;
 }
+// ==================== TOOLTIP 429 ====================
+let rateLimitTooltip = null;
+let rateLimitTimeout = null;
 
+export function showRateLimitTooltip() {
+  // Rimuovi il tooltip esistente se presente
+  hideRateLimitTooltip();
+  
+  // Crea il tooltip
+  rateLimitTooltip = document.createElement('div');
+  rateLimitTooltip.id = 'rate-limit-tooltip';
+  rateLimitTooltip.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: rgba(13, 17, 23, 0.97);
+    border: 1px solid rgba(255, 165, 0, 0.5);
+    border-radius: 16px;
+    padding: 24px 32px;
+    z-index: 99999;
+    color: #e6edf3;
+    font-family: 'Inter', -apple-system, sans-serif;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(12px);
+    max-width: 380px;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+  `;
+  
+  rateLimitTooltip.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
+    <div style="font-size: 18px; font-weight: 700; color: #ff9100; margin-bottom: 8px;">Too Many Requests</div>
+    <div style="font-size: 14px; color: #8b949e; line-height: 1.5;">
+      The server is receiving too many requests.<br>
+      Please wait a moment before trying again.
+    </div>
+    <div style="margin-top: 16px; font-size: 12px; color: #484f58;">
+      ⚡ Rate limit exceeded
+    </div>
+  `;
+  
+  document.body.appendChild(rateLimitTooltip);
+  
+  // Animazione di entrata
+  requestAnimationFrame(() => {
+    rateLimitTooltip.style.opacity = '1';
+    rateLimitTooltip.style.transform = 'translate(-50%, -50%) scale(1)';
+  });
+  
+  // Auto-remove dopo 4 secondi
+  if (rateLimitTimeout) clearTimeout(rateLimitTimeout);
+  rateLimitTimeout = setTimeout(() => {
+    hideRateLimitTooltip();
+  }, 4000);
+}
+
+export function hideRateLimitTooltip() {
+  if (rateLimitTooltip) {
+    rateLimitTooltip.style.opacity = '0';
+    rateLimitTooltip.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    setTimeout(() => {
+      if (rateLimitTooltip && rateLimitTooltip.parentNode) {
+        rateLimitTooltip.parentNode.removeChild(rateLimitTooltip);
+      }
+      rateLimitTooltip = null;
+    }, 300);
+  }
+  if (rateLimitTimeout) {
+    clearTimeout(rateLimitTimeout);
+    rateLimitTimeout = null;
+  }
+}
+
+// ==================== FETCH CON AUTENTICAZIONE ====================
+export function fetchWithAuth(url, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+    'X-API-KEY': API_KEY,
+  };
+  return fetch(url, { ...options, headers });
+}
 export function parseCSV(csvText) {
   const rows = [];
   const lines = csvText.trim().split(/\r?\n/);

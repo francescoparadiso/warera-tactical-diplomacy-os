@@ -1,5 +1,9 @@
+// ui.js
 import { state } from './state.js';
 import { COLORS } from './config.js';
+import { getAllianceAllies, getDualAllyDefensiveIds } from './diplomacy.js';
+import { fmtNumber } from './utils.js'; // Aggiunto per formattare i numeri nella legenda
+
 function _fmtDmg(n) {
   if (!n) return '0';
   if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
@@ -7,7 +11,7 @@ function _fmtDmg(n) {
   if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
   return String(n);
 }
-// ==================== TOAST ====================
+
 const TOAST_ICONS = {
   info: '💬',
   success: '✅',
@@ -17,12 +21,9 @@ const TOAST_ICONS = {
 
 export function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
-
-  // Separa titolo e dettaglio (opzionale: usa " | " come separatore)
   const parts = message.split(' | ');
   const title = parts[0];
   const detail = parts[1] || '';
-
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = `
@@ -40,21 +41,9 @@ export function showToast(message, type = 'info') {
   }, 3000);
 }
 
-// ==================== LEGENDA ====================
-const LEGEND_ITEMS = [
-  { color: COLORS.SELECTED, name: 'Selected', desc: 'The nation you clicked' },
-  { color: COLORS.NAP, name: 'NAP', desc: 'Non-aggression pact' },
-  { color: COLORS.WAR_DIRECT, name: 'Direct war', desc: 'Active conflict' },
-  { color: COLORS.WAR_INDIRECT, name: 'Indirect enemy', desc: "Enemy's allies" },
-  { color: COLORS.ALLY_DIRECT, name: 'Direct ally', desc: 'Formal alliance' },
-  { color: COLORS.ALLY_INDIRECT, name: 'Indirect ally', desc: "Ally's allies" },
-  { color: COLORS.DEFAULT_LAND, name: 'Neutral', desc: 'No relation' },
-];
-
 export function updateDynamicLegend() {
   const box = document.getElementById('dynamic-legend');
 
-  // ----- POPULATION MODE -----
   if (state.coloringMode === 'population') {
     let min = Infinity, max = -Infinity;
     for (const nation of state.nationMap.values()) {
@@ -64,7 +53,6 @@ export function updateDynamicLegend() {
         if (pop > max) max = pop;
       }
     }
-
     box.innerHTML = `
       <div class="legend-section-title">Active Population</div>
       <div style="margin: 4px 0;">
@@ -78,37 +66,62 @@ export function updateDynamicLegend() {
     `;
     return;
   }
-if (state.coloringMode === 'weeklyDamage') {
-  let min = Infinity, max = -Infinity;
-  for (const nation of state.nationMap.values()) {
-    const dmg = nation?.rankings?.weeklyCountryDamages?.value;
-    if (typeof dmg === 'number' && dmg >= 0) {
-      if (dmg < min) min = dmg;
-      if (dmg > max) max = dmg;
+
+  if (state.coloringMode === 'weeklyDamage') {
+    let min = Infinity, max = -Infinity;
+    for (const nation of state.nationMap.values()) {
+      const dmg = nation?.rankings?.weeklyCountryDamages?.value;
+      if (typeof dmg === 'number' && dmg >= 0) {
+        if (dmg < min) min = dmg;
+        if (dmg > max) max = dmg;
+      }
     }
+    box.innerHTML = `
+      <div class="legend-section-title">Weekly Damage</div>
+      <div style="margin:4px 0;">
+        <div style="width:100%;height:14px;background:linear-gradient(to right, #4575b4, #d73027);border-radius:3px;"></div>
+      </div>
+      <div class="legend-note">Higher = darker</div>
+    `;
+    return;
   }
-  box.innerHTML = `
-    <div class="legend-section-title">Weekly Damage</div>
-    <div style="margin:4px 0;">
-      <div style="width:100%;height:14px;background:linear-gradient(to right, #4575b4, #d73027);border-radius:3px;"></div>
-    </div>
-    <div class="legend-note">Higher = darker</div>`;
-  return;
-}
+
+  if (state.coloringMode === 'sphereOfInfluence') {
+    let html = '';
+    state.sphereInfo.forEach(info => {
+      const color = state.nationBaseColorMap.get(info.primaryId) || COLORS.DEFAULT_LAND;
+      html += `
+        <div class="legend-item">
+          <div class="legend-bar" style="background:${color};"></div>
+          <div class="legend-info">
+            <div class="legend-name">${info.primaryName}</div>
+            <div class="legend-desc">${info.proxyIds.length} proxy nation${info.proxyIds.length === 1 ? '' : 's'}</div>
+          </div>
+        </div>`;
+    });
+    html += `
+      <div class="legend-item">
+        <div class="legend-bar" style="background:${COLORS.DEFAULT_LAND};opacity:0.6;"></div>
+        <div class="legend-info"><div class="legend-name">Other</div></div>
+      </div>`;
+    box.innerHTML = html;
+    return;
+  }
+
   if (state.coloringMode === 'blocs') {
     let html = '';
-state.externalBlocsInfo.forEach(b => {
-  const alliance = state.alliancesList.find(a => a.name === b.name);
-  const memberCount = alliance ? alliance.memberCountries.length : 0;
-  html += `
-    <div class="legend-item">
-      <div class="legend-bar" style="background:${b.color};"></div>
-      <div class="legend-info">
-        <div class="legend-name">${b.name}</div>
-        <div class="legend-desc">${memberCount} nations</div>
-      </div>
-    </div>`;
-});
+    state.externalBlocsInfo.forEach(b => {
+      const alliance = state.alliancesList.find(a => a.name === b.name);
+      const memberCount = alliance ? alliance.memberCountries.length : 0;
+      html += `
+        <div class="legend-item">
+          <div class="legend-bar" style="background:${b.color};"></div>
+          <div class="legend-info">
+            <div class="legend-name">${b.name}</div>
+            <div class="legend-desc">${memberCount} nations</div>
+          </div>
+        </div>`;
+    });
     const multi = [...state.multiBlocMap.values()];
     if (multi.length) {
       html += `
@@ -129,6 +142,54 @@ state.externalBlocsInfo.forEach(b => {
     return;
   }
 
+  // ==================== BATTLE HEATMAP ====================
+// ui.js - sostituisci la sezione battleHeatmap nella funzione updateDynamicLegend
+
+  // ==================== BATTLE HEATMAP ====================
+  if (state.coloringMode === 'battleHeatmap' && state.battleHeatmapData) {
+    const data = state.battleHeatmapData;
+    
+    // Calcola i totali per lato per la legenda
+    const attackers = data.nations.filter(n => n.side === 'attacker');
+    const defenders = data.nations.filter(n => n.side === 'defender');
+    const totalAttackerDmg = attackers.reduce((sum, n) => sum + n.totalDamage, 0);
+    const totalDefenderDmg = defenders.reduce((sum, n) => sum + n.totalDamage, 0);
+    
+    box.innerHTML = `
+      <div class="legend-section-title">⚔️ Battle Heatmap</div>
+      <div class="legend-item"><span style="font-weight:bold;">${data.battleName}</span></div>
+      <div style="margin: 4px 0;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <span style="font-size:10px; color:#58a6ff;">Attacker</span>
+          <div style="flex:1; height:12px; background:linear-gradient(to right, #B0D4FF, #0044FF); border-radius:3px;"></div>
+          <span style="font-size:10px; color:#8b949e;">${fmtNumber(totalAttackerDmg)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:10px; color:#ff6b6b;">Defender</span>
+          <div style="flex:1; height:12px; background:linear-gradient(to right, #FFB0B0, #FF0000); border-radius:3px;"></div>
+          <span style="font-size:10px; color:#8b949e;">${fmtNumber(totalDefenderDmg)}</span>
+        </div>
+        <div style="font-size:10px; color:#484f58; margin-top:4px;">Percentuale = danno nazione / totale danno del lato</div>
+      </div>
+      <button id="exit-heatmap-btn" style="margin-top:8px; background:#ff4444; border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600; width:100%; transition:background 0.15s;">✕ Exit Heatmap</button>
+    `;
+    
+    // Gestione robusta del pulsante exit
+    setTimeout(() => {
+      const exitBtn = document.getElementById('exit-heatmap-btn');
+      if (exitBtn) {
+        const newExitBtn = exitBtn.cloneNode(true);
+        exitBtn.parentNode.replaceChild(newExitBtn, exitBtn);
+        newExitBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          import('./battleHeatmap.js').then(m => m.exitBattleHeatmap());
+        });
+      }
+    }, 50);
+    return;
+  }
+
+  // Diplomacy mode (con o senza selezione)
   if (!state.selectedCountryId) {
     box.innerHTML = `
       <div class="legend-item">
@@ -150,21 +211,36 @@ state.externalBlocsInfo.forEach(b => {
     return;
   }
 
-  // Con nazione selezionata: mostra tutte le voci con conteggio
+  // Con nazione selezionata
   const target = state.nationMap.get(state.selectedCountryId);
-  const alliesCnt = target?.allies?.length ?? 0;
+  const dipl = state.diplomacyData.get(state.selectedCountryId);
+  const defCount = dipl?.defensivePacts?.length || 0;
+  const swornCount = dipl?.swornEnemy ? 1 : 0;
+  const alliesCnt = getAllianceAllies(state.selectedCountryId).length;
   const warsCnt = target?.warsWith?.length ?? 0;
   const napsCnt = state.customNaps.length + _countExternalNaps();
-
-  const counts = {
-    [COLORS.ALLY_DIRECT]: alliesCnt,
-    [COLORS.WAR_DIRECT]: warsCnt,
-    [COLORS.NAP]: napsCnt,
-  };
+  const dualCnt = getDualAllyDefensiveIds(state.selectedCountryId).length;
 
   let html = '';
-  LEGEND_ITEMS.forEach(item => {
-    const cnt = counts[item.color];
+  const items = [
+    { color: COLORS.SELECTED, name: 'Selected', desc: 'The nation you clicked' },
+    { color: COLORS.NAP, name: 'NAP', desc: 'Non-aggression pact' },
+    { color: COLORS.DEFENSIVE_PACT, name: 'Defensive Pact', desc: 'Mutual defense agreement' },
+    { color: COLORS.SWORN_ENEMY, name: 'Sworn Enemy', desc: 'Permanent enemy' },
+    { color: COLORS.WAR_DIRECT, name: 'Direct war', desc: 'Active conflict' },
+    { color: COLORS.WAR_INDIRECT, name: 'Indirect enemy', desc: "Enemy's allies" },
+    { color: COLORS.ALLY_DIRECT, name: 'Direct ally', desc: 'Formal alliance' },
+    { color: COLORS.ALLY_INDIRECT, name: 'Indirect ally', desc: "Ally's allies" },
+    { color: COLORS.DEFAULT_LAND, name: 'Neutral', desc: 'No relation' },
+  ];
+
+  items.forEach(item => {
+    let cnt = undefined;
+    if (item.color === COLORS.ALLY_DIRECT) cnt = alliesCnt;
+    else if (item.color === COLORS.WAR_DIRECT) cnt = warsCnt;
+    else if (item.color === COLORS.NAP) cnt = napsCnt;
+    else if (item.color === COLORS.DEFENSIVE_PACT) cnt = defCount;
+    else if (item.color === COLORS.SWORN_ENEMY) cnt = swornCount;
     html += `
       <div class="legend-item">
         <div class="legend-bar" style="background:${item.color};${item.color === COLORS.DEFAULT_LAND ? 'opacity:0.6;' : ''}"></div>
@@ -174,7 +250,20 @@ state.externalBlocsInfo.forEach(b => {
         </div>
         ${cnt !== undefined ? `<div class="legend-count">${cnt}</div>` : ''}
       </div>`;
+
+    if (item.color === COLORS.ALLY_DIRECT && dualCnt > 0) {
+      html += `
+        <div class="legend-item">
+          <div class="legend-bar" style="background:linear-gradient(180deg,${COLORS.ALLY_DIRECT} 50%,${COLORS.DEFENSIVE_PACT} 50%);"></div>
+          <div class="legend-info">
+            <div class="legend-name">Ally + Defensive Pact</div>
+            <div class="legend-desc">Same bloc, also defensive pact</div>
+          </div>
+          <div class="legend-count">${dualCnt}</div>
+        </div>`;
+    }
   });
+
   if (state.mapSource === 'original') {
     html += '<div class="legend-note">Showing original territory borders</div>';
   }
@@ -190,18 +279,15 @@ function _countExternalNaps() {
   return cnt;
 }
 
-// ==================== STATS ====================
 export function updateStats() {
-  const allies = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.allies?.length ?? 0) : 0;
+  const allies = state.selectedCountryId ? getAllianceAllies(state.selectedCountryId).length : 0;
   const wars   = state.selectedCountryId ? (state.nationMap.get(state.selectedCountryId)?.warsWith?.length ?? 0) : 0;
   const naps   = state.customNaps.length;
 
-  // Helper sicuro: aggiorna SOLO se l'elemento esiste nel DOM
   const setSafe = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   };
-
   setSafe('stats-allies', allies);
   setSafe('stats-wars',   wars);
   setSafe('stats-naps',   naps);
@@ -210,7 +296,6 @@ export function updateStats() {
   setSafe('chip-naps',    naps);
 }
 
-// ==================== SELECTED DISPLAY ====================
 export function updateSelectedDisplay() {
   const display = document.getElementById('selected-display');
   if (!state.selectedCountryId) { display.style.display = 'none'; return; }
@@ -218,7 +303,6 @@ export function updateSelectedDisplay() {
   const nation = state.nationMap.get(state.selectedCountryId);
   if (!nation) { display.style.display = 'none'; return; }
 
-  // Recupera codice bandiera
   let code = '';
   if (state.mapSource === 'original') {
     code = state.originalLabelsData.find(l => l.properties.countryId === state.selectedCountryId)?.properties?.countryCode || nation.code?.toLowerCase() || '';
@@ -226,7 +310,7 @@ export function updateSelectedDisplay() {
     code = state.labelsData.find(l => l.properties?.countryId === state.selectedCountryId)?.properties?.countryCode?.toLowerCase() || nation.code?.toLowerCase() || '';
   }
 
-  const allies = nation.allies?.length ?? 0;
+  const allies = getAllianceAllies(state.selectedCountryId).length;
   const wars = nation.warsWith?.length ?? 0;
   const naps = state.customNaps.length + _countExternalNaps();
 
@@ -244,28 +328,23 @@ export function updateSelectedDisplay() {
   `;
   display.style.display = 'flex';
 
-  // Deselect al click della ×
   document.getElementById('deselect-btn')?.addEventListener('click', () => {
     state.selectedCountryId = null;
     import('./map.js').then(m => m.renderMap());
   });
 }
 
-// ==================== NAP BADGE ====================
 export function updateNapBadge(count) {
   document.getElementById('nap-count').textContent = count;
 }
 
-// ==================== NAP LIST ====================
 export function updateNapListUI() {
   const container = document.getElementById('napList');
   updateNapBadge(state.customNaps.length);
-
   if (!state.customNaps.length) {
     container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
     return;
   }
-
   container.innerHTML = state.customNaps.map(id => {
     const n = state.nationMap.get(id);
     if (!n) return '';
@@ -288,15 +367,12 @@ export function updateNapListUI() {
   });
 }
 
-// ==================== EXTERNAL NAPS UI ====================
 export function updateExternalNapsUI() {
   const container = document.getElementById('externalNapList');
   if (!state.externalNapsList.length) {
     container.innerHTML = '<div class="empty-state">No external NAPs loaded</div>';
     return;
   }
-
-  // Raggruppa per nazione sorgente
   const grouped = new Map();
   state.externalNapsList.forEach(nap => {
     if (!grouped.has(nap.fromId)) grouped.set(nap.fromId, []);
@@ -321,24 +397,20 @@ export function updateExternalNapsUI() {
   container.innerHTML = html;
 }
 
-// ==================== TOGGLE COLLAPSIBLE ====================
 export function toggleNapSection(sectionId) {
   const body = document.getElementById(sectionId);
   const iconId = sectionId === 'manual-nap-section' ? 'manual-nap-icon' : 'external-nap-icon';
   const icon = document.getElementById(iconId);
   if (!body || !icon) return;
-
   const isOpen = body.classList.contains('open');
   body.classList.toggle('open', !isOpen);
   icon.classList.toggle('open', !isOpen);
-  icon.textContent = isOpen ? '▶' : '▶'; // la rotazione è via CSS
+  icon.textContent = isOpen ? '▶' : '▶';
 }
 
-// ==================== SYNC UI ====================
 export function syncUIToState() {
   const isOriginal = state.mapSource === 'original';
   document.getElementById('toggle-borders').checked = isOriginal;
-
   const lA = document.getElementById('label-actual');
   const lO = document.getElementById('label-original');
   if (lA && lO) {
@@ -348,4 +420,6 @@ export function syncUIToState() {
   document.getElementById('mode-population')?.classList.toggle('active', state.coloringMode === 'population');
   document.getElementById('mode-diplomacy').classList.toggle('active', state.coloringMode === 'diplomacy');
   document.getElementById('mode-blocs').classList.toggle('active', state.coloringMode === 'blocs');
+  document.getElementById('mode-weeklyDamage')?.classList.toggle('active', state.coloringMode === 'weeklyDamage');
+  document.getElementById('mode-sphereOfInfluence')?.classList.toggle('active', state.coloringMode === 'sphereOfInfluence');
 }

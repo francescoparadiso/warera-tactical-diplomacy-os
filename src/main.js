@@ -5,9 +5,12 @@ import { showToast, updateDynamicLegend } from './ui.js';
 import { initMap, renderMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
 //import { loadExternalBlocs } from './blocs.js';
 import { loadExternalNaps, aggiungiNap } from './naps.js';
+import { loadSphereOfInfluence } from './sphereOfInfluence.js';
 import { syncUIToState, toggleNapSection, updateExternalNapsUI } from './ui.js';
 import { buildOriginalLabels, loadFlagImage } from './labels.js';
 import { API_BASE_URL } from './config.js';
+import { updateBattleMarkers } from './battleMarkers.js';
+import { loadRegions } from './regions.js';
 // ==================== CARICAMENTO DATI ====================
 async function refreshData() {
   try {
@@ -27,7 +30,7 @@ async function refreshData() {
     state.nationMap.clear();
     state.nazioniGlobal.forEach(n => state.nationMap.set(n._id, n));
 
-    // ----- CARICAMENTO ALLEANZE CON GET BATCH (formato corretto) -----
+    // ----- CARICAMENTO ALLEANZE CON GET BATCH -----
     const uniqueAllianceIds = [...new Set(
       state.nazioniGlobal
         .map(nation => nation.allianceId)
@@ -36,30 +39,55 @@ async function refreshData() {
 
     let alliances = [];
     if (uniqueAllianceIds.length > 0) {
-      // Crea la stringa con i nomi delle procedure ripetuti
       const procedureNames = uniqueAllianceIds.map(() => 'alliance.getById').join(',');
-      // Costruisce l'oggetto input: { "0": { allianceId: id1 }, "1": { allianceId: id2 }, ... }
       const batchInput = {};
       uniqueAllianceIds.forEach((id, idx) => {
         batchInput[idx] = { allianceId: id };
       });
-
       const url = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Batch request failed: ${res.status}`);
       const results = await res.json();
-      // results è un array di oggetti con { result: { data: {...} } }
       alliances = results.map(item => item.result.data);
     }
 
     state.alliancesList = alliances;
     state.allianceColorMap.clear();
     state.nationAlliancesMap.clear();
-
-    import('./alliances.js').then(module => {
-      module.processAlliancesData(alliances);
-    });
+    // NOTA: processAlliancesData viene chiamato PIÙ AVANTI, dopo setupMapLayers(),
+    // perché ha bisogno di state.labelsData già popolato per calcolare le
+    // coordinate delle label dei blocchi (altrimenti i nomi dei blocchi non
+    // vengono disegnati in modalità "blocs").
     // ----- FINE CARICAMENTO ALLEANZE -----
+
+    // ----- CARICAMENTO DIPLOMAZIA (sworn enemy + defensive pacts) -----
+    const countryIds = state.nazioniGlobal.map(n => n._id);
+    state.diplomacyData.clear();
+    const DIPLOMACY_CHUNK_SIZE = 25;
+    try {
+      for (let i = 0; i < countryIds.length; i += DIPLOMACY_CHUNK_SIZE) {
+        const chunk = countryIds.slice(i, i + DIPLOMACY_CHUNK_SIZE);
+        const procedureNames = chunk.map(() => 'countryDiplomacy.getByCountry').join(',');
+        const batchInput = {};
+        chunk.forEach((id, idx) => { batchInput[idx] = { countryId: id }; });
+        const diplomacyUrl = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
+        const diplomacyRes = await fetch(diplomacyUrl);
+        if (!diplomacyRes.ok) throw new Error(`Diplomacy batch failed: ${diplomacyRes.status}`);
+        const diplomacyResults = await diplomacyRes.json();
+        diplomacyResults.forEach((item, idx) => {
+          const nationId = chunk[idx];
+          const data = item?.result?.data?.json ?? item?.result?.data;
+          if (!data) { if (item?.error) console.warn('Diplomacy error for', nationId, item.error); return; }
+          state.diplomacyData.set(nationId, {
+            swornEnemy: data.swornEnemy?.enemy || null,
+            defensivePacts: (data.defensivePacts || []).map(p => p.partner),
+          });
+        });
+      }
+    } catch (diplErr) {
+      console.error('Errore caricamento diplomazia:', diplErr);
+    }
+    // ----- FINE CARICAMENTO DIPLOMAZIA -----
 
     // Datalist autocomplete
     const datalist = document.getElementById('nazioniList');
@@ -69,6 +97,8 @@ async function refreshData() {
       .forEach(n => datalist.appendChild(new Option(n.name)));
 
     await setupMapLayers();
+    await loadRegions();
+    setInterval(updateBattleMarkers, 60000);
 
     // Color map base
     state.nationBaseColorMap.clear();
@@ -85,8 +115,21 @@ async function refreshData() {
       if (c) loadFlagImage(c);
     });
 
+    // ----- ORA che state.labelsData è popolato, calcoliamo i dati delle alleanze -----
+    // (blocColorMap, multiBlocMap, externalBlocsInfo con labelLng/labelLat corretti)
+    const allianceModule = await import('./alliances.js');
+    allianceModule.processAlliancesData(alliances);
+    // ----------------------------------------------------------------------------
+
     updateExternalNapsUI();
     syncUIToState();
+    loadSphereOfInfluence();
+
+    // ==================== BATTLE MARKERS ====================
+    await updateBattleMarkers();
+    // Aggiorna i marcatori ogni 30 secondi
+    setInterval(updateBattleMarkers, 30000);
+
     showToast('Strategic data loaded', 'success');
   } catch (e) {
     console.error(e);
@@ -99,62 +142,85 @@ async function refreshData() {
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
 
-  document.getElementById('theme-toggle-btn').addEventListener('click', function () {
-    const newTheme = state.theme === 'light' ? 'dark' : 'light';
-    state.theme = newTheme;
-    document.body.classList.toggle('light-theme', newTheme === 'light');
+document.getElementById('theme-toggle-btn').addEventListener('click', function () {
+  const newTheme = state.theme === 'light' ? 'dark' : 'light';
+  state.theme = newTheme;
+  document.body.classList.toggle('light-theme', newTheme === 'light');
 
-    // Aggiorna icona
-    const icon = document.getElementById('theme-icon');
-    if (icon) icon.textContent = newTheme === 'light' ? '☀️' : '🌙';
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = newTheme === 'light' ? '☀️' : '🌙';
 
-    // Applica il tema alla mappa
-    import('./map.js').then(module => {
-      if (typeof module.applyTheme === 'function') module.applyTheme();
-      if (typeof module.renderMap === 'function') module.renderMap();
-      import('./ui.js').then(ui => ui.updateDynamicLegend());
-    });
+  import('./map.js').then(module => {
+    if (typeof module.applyTheme === 'function') module.applyTheme();
+    if (typeof module.renderMap === 'function') module.renderMap();
+    import('./ui.js').then(ui => ui.updateDynamicLegend());
   });
 
-  // Ricerca
+  import('./battleMarkers.js').then(m => {
+    m.clearMarkers();
+    setTimeout(() => m.updateBattleMarkers(), 50);
+  });
+});
+
   document.getElementById('cercaInput').addEventListener('keypress', e => { if (e.key === 'Enter') cercaNazione(); });
   document.getElementById('searchBtn').addEventListener('click', cercaNazione);
   document.getElementById('resetBtn').addEventListener('click', resetDiplomazia);
 
-  // NAP
   document.getElementById('napInput').addEventListener('keypress', e => { if (e.key === 'Enter') aggiungiNap(); });
   document.getElementById('addNapBtn').addEventListener('click', aggiungiNap);
 
-  // Toggle borders
   document.getElementById('toggle-borders').addEventListener('change', function () {
     setMapSource(this.checked);
   });
 
-  // Mode buttons
-  document.getElementById('mode-diplomacy').addEventListener('click', () => setColoringMode('diplomacy'));
-  document.getElementById('mode-blocs').addEventListener('click', () => setColoringMode('blocs'));
-  document.getElementById('mode-population').addEventListener('click', () => setColoringMode('population'));
-  document.getElementById('mode-weeklyDamage').addEventListener('click', () => setColoringMode('weeklyDamage'));
-  // Switches
+// main.js - sostituisci la sezione dei listener dei pulsanti
+
+// Pulsanti prima riga
+document.getElementById('mode-diplomacy').addEventListener('click', () => {
+  // Nascondi lo slider della seconda riga
+  const sliderBottom = document.getElementById('mode-slider-bottom');
+  if (sliderBottom) sliderBottom.style.opacity = '0.3';
+  setColoringMode('diplomacy');
+});
+
+document.getElementById('mode-blocs').addEventListener('click', () => {
+  const sliderBottom = document.getElementById('mode-slider-bottom');
+  if (sliderBottom) sliderBottom.style.opacity = '0.3';
+  setColoringMode('blocs');
+});
+
+document.getElementById('mode-sphereOfInfluence')?.addEventListener('click', () => {
+  const sliderBottom = document.getElementById('mode-slider-bottom');
+  if (sliderBottom) sliderBottom.style.opacity = '0.3';
+  setColoringMode('sphereOfInfluence');
+});
+
+// Pulsanti seconda riga
+document.getElementById('mode-weeklyDamage').addEventListener('click', () => {
+  const sliderTop = document.getElementById('mode-slider');
+  if (sliderTop) sliderTop.style.opacity = '0.3';
+  setColoringMode('weeklyDamage');
+});
+
+document.getElementById('mode-population').addEventListener('click', () => {
+  const sliderTop = document.getElementById('mode-slider');
+  if (sliderTop) sliderTop.style.opacity = '0.3';
+  setColoringMode('population');
+});
   document.getElementById('checkExtended').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
   document.getElementById('checkLabels').addEventListener('change', () => { if (state.map) state.map.triggerRepaint(); });
   document.getElementById('checkExcludeExternalNaps').addEventListener('change', () => { import('./map.js').then(m => m.renderMap()); });
 
-  // Collapsible NAP sections
   document.getElementById('manualNapToggle').addEventListener('click', () => toggleNapSection('manual-nap-section'));
   document.getElementById('externalNapToggle').addEventListener('click', () => toggleNapSection('external-nap-section'));
 
-  // Legenda
   document.getElementById('legendToggleBtn').addEventListener('click', () => {
     document.getElementById('dynamic-legend').classList.toggle('hidden');
   });
 
-  // Zoom controls
   document.getElementById('zoomInBtn')?.addEventListener('click', () => { state.map?.zoomIn(); });
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => { state.map?.zoomOut(); });
 
-
-  // Hamburger menu
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const hamburgerMenu = document.getElementById('hamburger-menu');
   hamburgerBtn.addEventListener('click', e => {
@@ -167,11 +233,9 @@ function setupEventListeners() {
     }
   });
 
-  // Bloc Statistics page
   document.getElementById('bloc-stats-btn').addEventListener('click', () => {
     document.getElementById('map').style.display = 'none';
     document.getElementById('bloc-stats-page').style.display = 'block';
-    // Nascondi anche eventuali overlay se interferiscono
     import('./blocStats.js').then(m => {
       const stats = m.computeBlocStats();
       m.renderBlocStats(stats);
@@ -182,15 +246,39 @@ function setupEventListeners() {
     document.getElementById('bloc-stats-page').style.display = 'none';
     document.getElementById('map').style.display = 'block';
   });
+// Toggle Active Battles
+document.getElementById('checkActiveBattles').addEventListener('change', function() {
+  import('./battleMarkers.js').then(m => {
+    m.toggleBattleMarkers(this.checked);
+  });
+});
+  // ==================== TASTO ESC PER USCITA HEATMAP ====================
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.coloringMode === 'battleHeatmap') {
+      import('./battleHeatmap.js').then(m => m.exitBattleHeatmap());
+    }
+  });
 }
 
 // ==================== INIT ====================
 async function init() {
   initMap();
-  const slider = document.getElementById('mode-slider');
-  if (slider) {
-    slider.style.left = '3px'; // Diplomacy è attivo di default
-  }
+// main.js - dopo initMap(), aggiungi:
+
+// Inizializza gli slider
+const sliderTop = document.getElementById('mode-slider');
+const sliderBottom = document.getElementById('mode-slider-bottom');
+
+if (sliderTop) {
+  sliderTop.style.left = '3px';
+  sliderTop.style.opacity = '1';
+}
+
+if (sliderBottom) {
+  sliderBottom.style.left = '3px';
+  sliderBottom.style.opacity = '0.3'; // Nascondi inizialmente la seconda riga
+  state._lastBottomMode = 'weeklyDamage'; // Default
+}
   setupEventListeners();
   state.map.on('load', refreshData);
 }
