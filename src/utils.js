@@ -1,4 +1,50 @@
-import { API_KEY } from './config.js';
+import { API_KEY, API_BASE_URL } from './config.js';
+
+// ==================== BATCHING tRPC ====================
+// Combina più procedure tRPC in un unico POST (?batch=1), riducendo il
+// consumo di rate limit (1 richiesta invece di N). Vedi warera-api-batching.md.
+// calls: array di [endpoint, params] es. [['battle.getById', { battleId }], ...]
+// Ritorna: array di risultati unwrapped nello stesso ordine di `calls`.
+//          Gli item falliti (error / 429 / eccezioni) sono `null`.
+export const MAX_BATCH = 50;
+
+export async function trpcBatch(calls) {
+  if (!calls || !calls.length) return [];
+  if (calls.length > MAX_BATCH) {
+    // Chunk automatico se si supera il limite, per sicurezza
+    const chunks = [];
+    for (let i = 0; i < calls.length; i += MAX_BATCH) chunks.push(calls.slice(i, i + MAX_BATCH));
+    const results = [];
+    for (const chunk of chunks) results.push(...(await trpcBatch(chunk)));
+    return results;
+  }
+
+  try {
+    const procedureNames = calls.map(([proc]) => proc).join(',');
+    const batchInput = {};
+    calls.forEach(([, params], idx) => { batchInput[idx] = params || {}; });
+    const url = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
+    const res = await fetch(url);
+
+    if (res.status === 429) {
+      showRateLimitTooltip();
+      return calls.map(() => null);
+    }
+    if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
+
+    const results = await res.json();
+    return results.map(item => {
+      if (!item || item.error) {
+        if (item?.error) console.warn('trpcBatch item error:', item.error);
+        return null;
+      }
+      return item.result?.data?.json ?? item.result?.data ?? null;
+    });
+  } catch (err) {
+    console.error('trpcBatch error:', err);
+    return calls.map(() => null);
+  }
+}
 // ==================== CSV ====================
 function parseLine(line) {
   const result = [];

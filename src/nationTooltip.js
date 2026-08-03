@@ -1,5 +1,9 @@
 import { state } from './state.js';
 
+// URL del tool esterno "PoliticalView". Se il formato del parametro cambia,
+// aggiorna solo questa riga.
+const POLITICAL_VIEW_BASE_URL = 'https://francescoparadiso.github.io/PoliticalView/';
+
 let hoverSuppressed = false;
 
 // ==================== HELPERS ====================
@@ -31,7 +35,7 @@ function getTooltipEl() {
   return el;
 }
 
-function buildContent(nation, code, blocInfo) {
+function buildContent(nation, code, blocInfo, isPinned) {
   const pop = nation?.rankings?.countryActivePopulation?.value || 0;
   const wealth = nation?.rankings?.countryWealth?.value ?? nation.money ?? 0;
   const dmg = nation?.rankings?.weeklyCountryDamages?.value || 0;
@@ -115,6 +119,24 @@ if (state.coloringMode === 'battleHeatmap' && state.battleHeatmapData) {
     <div class="nt-footer">ID: ${nation._id?.slice(0, 8)}… · <span class="nt-code">${code?.toUpperCase() || '—'}</span></div>
   `;
 
+  if (isPinned) {
+    const politicalUrl = `${POLITICAL_VIEW_BASE_URL}?country=${encodeURIComponent(nation._id)}`;
+    html += `
+      <div class="nt-actions" style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08);">
+        <a href="${politicalUrl}" target="_blank" rel="noopener" class="nt-political-btn" style="
+          display:flex; align-items:center; justify-content:center; gap:6px;
+          width:100%; padding:7px 10px; border-radius:8px;
+          background:rgba(88,166,255,0.12); border:1px solid rgba(88,166,255,0.35);
+          color:#58a6ff; font-size:12px; font-weight:600; text-decoration:none;
+          box-sizing:border-box; cursor:pointer; transition:background 0.15s, border-color 0.15s;
+        " onmouseover="this.style.background='rgba(88,166,255,0.22)'; this.style.borderColor='rgba(88,166,255,0.55)';"
+           onmouseout="this.style.background='rgba(88,166,255,0.12)'; this.style.borderColor='rgba(88,166,255,0.35)';">
+          🏛️ View Political Situation
+        </a>
+      </div>
+    `;
+  }
+
   return html;
 }
 
@@ -143,7 +165,7 @@ function show(nationId, x, y, pinned = false) {
     void tooltip.offsetWidth;
   }
 
-  tooltip.innerHTML = buildContent(nation, code, blocInfo);
+  tooltip.innerHTML = buildContent(nation, code, blocInfo, pinned || isMobile);
   currentId = nationId;
   isPinned = pinned;
 

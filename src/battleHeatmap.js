@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { API_BASE_URL, COLORS } from './config.js';
-import { showRateLimitTooltip } from './utils.js';
+import { showRateLimitTooltip, trpcBatch } from './utils.js';
 import { renderMap } from './map.js';
 import { updateDynamicLegend } from './ui.js';
 
@@ -69,6 +69,8 @@ export function resetBattlesCache() {
   isRateLimited = false;
 }
 
+// Mantenuta per compatibilità (chiamata singola, non batchata) — usata solo
+// come fallback. Il percorso principale usa fetchBattleFullData().
 export async function fetchBattleDetails(battleId) {
   try {
     const input = { battleId };
@@ -89,89 +91,104 @@ export async function fetchBattleDetails(battleId) {
   }
 }
 
-async function fetchRankingSide(battleId, side) {
-  try {
-    const input = { 
-      battleId, 
-      type: 'country', 
-      side, 
-      dataType: 'damage',
-      limit: 100
-    };
-    const url = `${API_BASE_URL}/trpc/battleRanking.getRanking?input=${encodeURIComponent(JSON.stringify(input))}`;
-    const res = await fetch(url);
-    
-    if (res.status === 429) {
-      showRateLimitTooltip();
-      return [];
-    }
-    
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const items = data?.result?.data?.items || data?.items || [];
-    return Array.isArray(items) ? items : [];
-  } catch (err) {
-    console.error(`fetchRankingSide (${side}) error:`, err);
+// Trasforma i due array di ranking (attacker/defender side) nella struttura
+// per-nazione usata dalla heatmap.
+function buildNationRanking(attackerRanking, defenderRanking) {
+  if (attackerRanking.length === 0 && defenderRanking.length === 0) {
     return [];
   }
+
+  const nationMap = new Map();
+
+  attackerRanking.forEach(item => {
+    const countryId = item.country;
+    if (!countryId) return;
+    if (!nationMap.has(countryId)) {
+      nationMap.set(countryId, { damageToAttackers: 0, damageToDefenders: 0 });
+    }
+    nationMap.get(countryId).damageToDefenders += item.value || 0;
+  });
+
+  defenderRanking.forEach(item => {
+    const countryId = item.country;
+    if (!countryId) return;
+    if (!nationMap.has(countryId)) {
+      nationMap.set(countryId, { damageToAttackers: 0, damageToDefenders: 0 });
+    }
+    nationMap.get(countryId).damageToAttackers += item.value || 0;
+  });
+
+  const processed = [];
+  let maxDamage = 0;
+
+  for (const [countryId, damages] of nationMap) {
+    const { damageToAttackers, damageToDefenders } = damages;
+    const totalDamage = damageToAttackers + damageToDefenders;
+    const side = damageToAttackers > damageToDefenders ? 'defender' : 'attacker';
+    if (totalDamage > maxDamage) maxDamage = totalDamage;
+    processed.push({
+      countryId,
+      totalDamage,
+      damageToAttackers,
+      damageToDefenders,
+      side,
+    });
+  }
+
+  processed.sort((a, b) => b.totalDamage - a.totalDamage);
+  return processed;
 }
 
+function extractRankingItems(res) {
+  const items = res?.items || (Array.isArray(res) ? res : []);
+  return Array.isArray(items) ? items : [];
+}
+
+// Ranking attacker + defender in un'unica richiesta batch (era Promise.all
+// di 2 fetch separate -> ora 1 solo POST). Vedi warera-api-batching.md.
 export async function fetchBattleRanking(battleId) {
   try {
-    const [attackerRanking, defenderRanking] = await Promise.all([
-      fetchRankingSide(battleId, 'attacker'),
-      fetchRankingSide(battleId, 'defender'),
-    ]);
-
-    if (attackerRanking.length === 0 && defenderRanking.length === 0) {
-      return [];
-    }
+    const calls = [
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'attacker', dataType: 'damage', limit: 100 }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'defender', dataType: 'damage', limit: 100 }],
+    ];
+    const [attackerRes, defenderRes] = await trpcBatch(calls);
+    const attackerRanking = extractRankingItems(attackerRes);
+    const defenderRanking = extractRankingItems(defenderRes);
 
     console.log('Attacker rankings:', attackerRanking);
     console.log('Defender rankings:', defenderRanking);
 
-    const nationMap = new Map();
-
-    attackerRanking.forEach(item => {
-      const countryId = item.country;
-      if (!countryId) return;
-      if (!nationMap.has(countryId)) {
-        nationMap.set(countryId, { damageToAttackers: 0, damageToDefenders: 0 });
-      }
-      nationMap.get(countryId).damageToDefenders += item.value || 0;
-    });
-
-    defenderRanking.forEach(item => {
-      const countryId = item.country;
-      if (!countryId) return;
-      if (!nationMap.has(countryId)) {
-        nationMap.set(countryId, { damageToAttackers: 0, damageToDefenders: 0 });
-      }
-      nationMap.get(countryId).damageToAttackers += item.value || 0;
-    });
-
-    const processed = [];
-    let maxDamage = 0;
-
-    for (const [countryId, damages] of nationMap) {
-      const { damageToAttackers, damageToDefenders } = damages;
-      const totalDamage = damageToAttackers + damageToDefenders;
-      const side = damageToAttackers > damageToDefenders ? 'defender' : 'attacker';
-      if (totalDamage > maxDamage) maxDamage = totalDamage;
-      processed.push({
-        countryId,
-        totalDamage,
-        damageToAttackers,
-        damageToDefenders,
-        side,
-      });
-    }
-
-    processed.sort((a, b) => b.totalDamage - a.totalDamage);
-    return processed;
+    return buildNationRanking(attackerRanking, defenderRanking);
   } catch (err) {
     console.error('fetchBattleRanking error:', err);
     return [];
+  }
+}
+
+// Dati completi per l'apertura della heatmap: dettagli battaglia + ranking
+// attacker + ranking defender, in UN SOLO POST batch (era 1+2 = 3 richieste
+// separate). Vedi warera-api-batching.md, pattern "endpoint misti".
+export async function fetchBattleFullData(battleId) {
+  try {
+    const calls = [
+      ['battle.getById', { battleId }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'attacker', dataType: 'damage', limit: 100 }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'defender', dataType: 'damage', limit: 100 }],
+    ];
+    const [details, attackerRes, defenderRes] = await trpcBatch(calls);
+    const attackerRanking = extractRankingItems(attackerRes);
+    const defenderRanking = extractRankingItems(defenderRes);
+    const nations = buildNationRanking(attackerRanking, defenderRanking);
+    return { details, nations };
+  } catch (err) {
+    console.error('fetchBattleFullData error:', err);
+    // Fallback a chiamate singole (vedi warera-api-batching.md, pattern 5)
+    const [details, nations] = await Promise.all([
+      fetchBattleDetails(battleId),
+      fetchBattleRanking(battleId),
+    ]);
+    return { details, nations };
   }
 }
 
@@ -196,8 +213,8 @@ export async function setBattleHeatmap(battleId) {
       console.log('Saved coloring mode:', savedColoringMode);
     }
     
-    console.log('Fetching ranking data for battle:', battleId);
-    const rankingData = await fetchBattleRanking(battleId);
+    console.log('Fetching battle data (batched) for battle:', battleId);
+    const { details, nations: rankingData } = await fetchBattleFullData(battleId);
     console.log('Ranking data received:', rankingData);
     
     if (!rankingData || !rankingData.length) {
@@ -209,7 +226,6 @@ export async function setBattleHeatmap(battleId) {
     let maxDamage = 0;
     nations.forEach(n => { if (n.totalDamage > maxDamage) maxDamage = n.totalDamage; });
 
-    const details = await fetchBattleDetails(battleId);
     const attackerId = details?.attacker?.country;
     const defenderId = details?.defender?.country;
     const getNation = (id) => {

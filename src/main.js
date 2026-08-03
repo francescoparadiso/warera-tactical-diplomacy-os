@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { state } from './state.js';
-import { hashColor, showLoading, hideLoading } from './utils.js';
+import { hashColor, showLoading, hideLoading, trpcBatch, MAX_BATCH } from './utils.js';
 import { showToast, updateDynamicLegend } from './ui.js';
 import { initMap, renderMap, setupMapLayers, cercaNazione, resetDiplomazia, setMapSource, setColoringMode } from './map.js';
 //import { loadExternalBlocs } from './blocs.js';
@@ -39,16 +39,10 @@ async function refreshData() {
 
     let alliances = [];
     if (uniqueAllianceIds.length > 0) {
-      const procedureNames = uniqueAllianceIds.map(() => 'alliance.getById').join(',');
-      const batchInput = {};
-      uniqueAllianceIds.forEach((id, idx) => {
-        batchInput[idx] = { allianceId: id };
-      });
-      const url = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Batch request failed: ${res.status}`);
-      const results = await res.json();
-      alliances = results.map(item => item.result.data);
+      // trpcBatch chunka automaticamente oltre MAX_BATCH (50) e gestisce 429/errori
+      const calls = uniqueAllianceIds.map(id => ['alliance.getById', { allianceId: id }]);
+      const results = await trpcBatch(calls);
+      alliances = results.filter(Boolean);
     }
 
     state.alliancesList = alliances;
@@ -63,21 +57,16 @@ async function refreshData() {
     // ----- CARICAMENTO DIPLOMAZIA (sworn enemy + defensive pacts) -----
     const countryIds = state.nazioniGlobal.map(n => n._id);
     state.diplomacyData.clear();
-    const DIPLOMACY_CHUNK_SIZE = 25;
     try {
-      for (let i = 0; i < countryIds.length; i += DIPLOMACY_CHUNK_SIZE) {
-        const chunk = countryIds.slice(i, i + DIPLOMACY_CHUNK_SIZE);
-        const procedureNames = chunk.map(() => 'countryDiplomacy.getByCountry').join(',');
-        const batchInput = {};
-        chunk.forEach((id, idx) => { batchInput[idx] = { countryId: id }; });
-        const diplomacyUrl = `${API_BASE_URL}/trpc/${procedureNames}?batch=1&input=${encodeURIComponent(JSON.stringify(batchInput))}`;
-        const diplomacyRes = await fetch(diplomacyUrl);
-        if (!diplomacyRes.ok) throw new Error(`Diplomacy batch failed: ${diplomacyRes.status}`);
-        const diplomacyResults = await diplomacyRes.json();
-        diplomacyResults.forEach((item, idx) => {
+      // trpcBatch chunka automaticamente a MAX_BATCH (50) elementi per POST
+      // e gestisce 429/errori per singolo item senza abortire l'intero giro.
+      for (let i = 0; i < countryIds.length; i += MAX_BATCH) {
+        const chunk = countryIds.slice(i, i + MAX_BATCH);
+        const calls = chunk.map(id => ['countryDiplomacy.getByCountry', { countryId: id }]);
+        const diplomacyResults = await trpcBatch(calls);
+        diplomacyResults.forEach((data, idx) => {
           const nationId = chunk[idx];
-          const data = item?.result?.data?.json ?? item?.result?.data;
-          if (!data) { if (item?.error) console.warn('Diplomacy error for', nationId, item.error); return; }
+          if (!data) return;
           state.diplomacyData.set(nationId, {
             swornEnemy: data.swornEnemy?.enemy || null,
             defensivePacts: (data.defensivePacts || []).map(p => p.partner),

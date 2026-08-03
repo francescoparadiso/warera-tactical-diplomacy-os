@@ -4,6 +4,7 @@ import { state } from './state.js';
 import maplibregl from 'maplibre-gl';
 import { fetchActiveBattles, setBattleHeatmap } from './battleHeatmap.js';
 import { API_BASE_URL } from './config.js';
+import { trpcBatch } from './utils.js';
 
 let markers = [];
 let markersEnabled = true;
@@ -210,6 +211,8 @@ export function toggleBattleMarkers(enabled) {
 }
 
 // ==================== HELPER: REGION DATA ====================
+// Versione singola (fallback / usi puntuali). Il percorso "hot" in
+// updateBattleMarkers usa fetchRegionDataBatch per evitare N richieste separate.
 async function fetchRegionData(regionId) {
   if (state.regionCache.has(regionId)) return state.regionCache.get(regionId);
   try {
@@ -228,7 +231,25 @@ async function fetchRegionData(regionId) {
   }
 }
 
+// Batcha in un solo POST tutte le regioni non ancora in cache (era una
+// fetch sequenziale per battaglia). Vedi warera-api-batching.md.
+async function fetchRegionDataBatch(regionIds) {
+  const toFetch = [...new Set(regionIds)].filter(id => id && !state.regionCache.has(id));
+  if (!toFetch.length) return;
+  const calls = toFetch.map(id => ['region.getById', { regionId: id }]);
+  const results = await trpcBatch(calls);
+  toFetch.forEach((regionId, idx) => {
+    const region = results[idx];
+    if (!region) return;
+    state.regionCache.set(regionId, {
+      position: region.position || null,
+      name: region.name || region.mainCity || '',
+    });
+  });
+}
+
 // ==================== LIVE BATTLE DATA ====================
+// Versione singola (fallback). Il percorso "hot" usa fetchLiveBattleDataBatch.
 async function fetchLiveBattleData(battleId) {
   try {
     const input = { battleId };
@@ -246,6 +267,25 @@ async function fetchLiveBattleData(battleId) {
     console.warn(`fetchLiveBattleData error for ${battleId}:`, err);
     return null;
   }
+}
+
+// Batcha i dati live di tutte le battaglie in un solo POST (era Promise.all
+// a gruppi di 5 -> ceil(N/5) richieste HTTP; ora 1 richiesta fino a 50
+// battaglie, chunk automatico oltre). Vedi warera-api-batching.md.
+async function fetchLiveBattleDataBatch(battleIds) {
+  const liveDataMap = new Map();
+  if (!battleIds.length) return liveDataMap;
+  const calls = battleIds.map(id => ['battle.getLiveBattleData', { battleId: id }]);
+  const results = await trpcBatch(calls);
+  battleIds.forEach((battleId, idx) => {
+    const live = results[idx];
+    const round = live?.round || {};
+    liveDataMap.set(battleId, live ? {
+      attackerDmg: round.attackerDamages || 0,
+      defenderDmg: round.defenderDamages || 0,
+    } : null);
+  });
+  return liveDataMap;
 }
 
 // ==================== BUILD MARKER ELEMENT ====================
@@ -415,16 +455,17 @@ export async function updateBattleMarkers() {
       
       const zoom = state.map.getZoom();
 
-      // Recupera dati live in batch
-      const liveDataMap = new Map();
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < battles.length; i += BATCH_SIZE) {
-        const batch = battles.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(batch.map(b => fetchLiveBattleData(b._id)));
-        batch.forEach((b, idx) => {
-          liveDataMap.set(b._id, batchResults[idx]);
-        });
-      }
+      // Dati live: 1 solo POST batch per tutte le battaglie (era Promise.all
+      // a gruppi di 5 -> più richieste HTTP separate).
+      const battleIds = battles.map(b => b._id);
+      const liveDataMap = await fetchLiveBattleDataBatch(battleIds);
+
+      // Dati regione: 1 solo POST batch per tutte le regioni non in cache
+      // (era una fetch sequenziale per battaglia dentro il loop sotto).
+      const regionIds = battles
+        .map(b => b.regionId || b.defender?.region || b.attacker?.region)
+        .filter(Boolean);
+      await fetchRegionDataBatch(regionIds);
 
       for (const battle of battles) {
         const regionId = battle.regionId || battle.defender?.region || battle.attacker?.region;
@@ -437,9 +478,6 @@ export async function updateBattleMarkers() {
           if (cached) {
             centroid = cached.position;
             regionName = cached.name || '';
-          } else {
-            const rd = await fetchRegionData(regionId);
-            if (rd?.position) { centroid = rd.position; regionName = rd.name || ''; }
           }
         }
 
