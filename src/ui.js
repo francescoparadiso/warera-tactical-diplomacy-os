@@ -1,8 +1,9 @@
 // ui.js
 import { state } from './state.js';
-import { COLORS } from './config.js';
+import { COLORS, THEMES } from './config.js';
 import { getAllianceAllies, getDualAllyDefensiveIds } from './diplomacy.js';
 import { fmtNumber } from './utils.js'; // Aggiunto per formattare i numeri nella legenda
+import { escapeHtml } from './utils.js';
 
 function _fmtDmg(n) {
   if (!n) return '0';
@@ -12,34 +13,9 @@ function _fmtDmg(n) {
   return String(n);
 }
 
-const TOAST_ICONS = {
-  info: '💬',
-  success: '✅',
-  error: '❌',
-  warning: '⚠️',
-};
-
-export function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  const parts = message.split(' | ');
-  const title = parts[0];
-  const detail = parts[1] || '';
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `
-    <div class="toast-icon ${type}">${TOAST_ICONS[type] || '💬'}</div>
-    <div class="toast-body">
-      <div class="toast-title">${title}</div>
-      ${detail ? `<div class="toast-msg">${detail}</div>` : ''}
-      <div class="toast-progress"><div class="toast-prog-fill ${type}"></div></div>
-    </div>
-  `;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
-}
+// showToast e' implementata in utils.js (unica versione, con icone e
+// progress bar) e qui ri-esportata per compatibilita' con gli import esistenti.
+export { showToast } from './utils.js';
 
 export function updateDynamicLegend() {
   const box = document.getElementById('dynamic-legend');
@@ -53,16 +29,23 @@ export function updateDynamicLegend() {
         if (pop > max) max = pop;
       }
     }
+    if (!isFinite(min) || !isFinite(max)) {
+      box.innerHTML = `
+        <div class="legend-section-title">Active Population</div>
+        <div class="legend-note">No population data available</div>`;
+      return;
+    }
+    const subPop = THEMES[state.theme].TEXT_SECONDARY;
     box.innerHTML = `
       <div class="legend-section-title">Active Population</div>
       <div style="margin: 4px 0;">
-        <div style="width:100%;height:14px;background:linear-gradient(to right, #ffffcc, #ff9900);border-radius:3px;"></div>
+        <div style="width:100%;height:14px;background:linear-gradient(to right, rgb(255,255,204), rgb(255,153,0));border-radius:3px;"></div>
       </div>
       <div class="legend-item" style="justify-content:space-between; padding: 0 4px;">
-        <span style="font-size:10px; color:#ccc;">${min.toLocaleString()}</span>
-        <span style="font-size:10px; color:#ccc;">${max.toLocaleString()}</span>
+        <span style="font-size:10px; color:${subPop};">${fmtNumber(min)}</span>
+        <span style="font-size:10px; color:${subPop};">${fmtNumber(max)}</span>
       </div>
-      <div class="legend-note">Higher = darker</div>
+      <div class="legend-note">Higher = more orange</div>
     `;
     return;
   }
@@ -76,12 +59,23 @@ export function updateDynamicLegend() {
         if (dmg > max) max = dmg;
       }
     }
+    if (!isFinite(min) || !isFinite(max)) {
+      box.innerHTML = `
+        <div class="legend-section-title">Weekly Damage</div>
+        <div class="legend-note">No damage data available</div>`;
+      return;
+    }
+    const sub = THEMES[state.theme].TEXT_SECONDARY;
     box.innerHTML = `
       <div class="legend-section-title">Weekly Damage</div>
       <div style="margin:4px 0;">
-        <div style="width:100%;height:14px;background:linear-gradient(to right, #4575b4, #d73027);border-radius:3px;"></div>
+        <div style="width:100%;height:14px;background:linear-gradient(to right, rgb(69,117,180), rgb(215,48,39));border-radius:3px;"></div>
       </div>
-      <div class="legend-note">Higher = darker</div>
+      <div class="legend-item" style="justify-content:space-between; padding:0 4px;">
+        <span style="font-size:10px; color:${sub};">${fmtNumber(min)}</span>
+        <span style="font-size:10px; color:${sub};">${fmtNumber(max)}</span>
+      </div>
+      <div class="legend-note">Low = blue · High = red</div>
     `;
     return;
   }
@@ -94,7 +88,7 @@ export function updateDynamicLegend() {
         <div class="legend-item">
           <div class="legend-bar" style="background:${color};"></div>
           <div class="legend-info">
-            <div class="legend-name">${info.primaryName}</div>
+            <div class="legend-name">${escapeHtml(info.primaryName)}</div>
             <div class="legend-desc">${info.proxyIds.length} proxy nation${info.proxyIds.length === 1 ? '' : 's'}</div>
           </div>
         </div>`;
@@ -111,13 +105,15 @@ export function updateDynamicLegend() {
   if (state.coloringMode === 'blocs') {
     let html = '';
     state.externalBlocsInfo.forEach(b => {
-      const alliance = state.alliancesList.find(a => a.name === b.name);
+      // lookup per id invece di .find per nome dentro il forEach (O(n^2));
+      // il match per nome falliva anche con due alleanze omonime.
+      const alliance = state.allianceMap.get(b.id);
       const memberCount = alliance ? alliance.memberCountries.length : 0;
       html += `
         <div class="legend-item">
           <div class="legend-bar" style="background:${b.color};"></div>
           <div class="legend-info">
-            <div class="legend-name">${b.name}</div>
+            <div class="legend-name">${escapeHtml(b.name)}</div>
             <div class="legend-desc">${memberCount} nations</div>
           </div>
         </div>`;
@@ -157,19 +153,19 @@ export function updateDynamicLegend() {
     
     box.innerHTML = `
       <div class="legend-section-title">⚔️ Battle Heatmap</div>
-      <div class="legend-item"><span style="font-weight:bold;">${data.battleName}</span></div>
+      <div class="legend-item"><span style="font-weight:bold;">${escapeHtml(data.battleName)}</span></div>
       <div style="margin: 4px 0;">
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
           <span style="font-size:10px; color:#58a6ff;">Attacker</span>
           <div style="flex:1; height:12px; background:linear-gradient(to right, #B0D4FF, #0044FF); border-radius:3px;"></div>
-          <span style="font-size:10px; color:#8b949e;">${fmtNumber(totalAttackerDmg)}</span>
+          <span style="font-size:10px; color:${THEMES[state.theme].TEXT_SECONDARY};">${fmtNumber(totalAttackerDmg)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
           <span style="font-size:10px; color:#ff6b6b;">Defender</span>
           <div style="flex:1; height:12px; background:linear-gradient(to right, #FFB0B0, #FF0000); border-radius:3px;"></div>
-          <span style="font-size:10px; color:#8b949e;">${fmtNumber(totalDefenderDmg)}</span>
+          <span style="font-size:10px; color:${THEMES[state.theme].TEXT_SECONDARY};">${fmtNumber(totalDefenderDmg)}</span>
         </div>
-        <div style="font-size:10px; color:#484f58; margin-top:4px;">Percentuale = danno nazione / totale danno del lato</div>
+        <div style="font-size:10px; color:${THEMES[state.theme].TEXT_SECONDARY}; opacity:.8; margin-top:4px;">Share = nation damage / side total</div>
       </div>
       <button id="exit-heatmap-btn" style="margin-top:8px; background:#ff4444; border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:600; width:100%; transition:background 0.15s;">✕ Exit Heatmap</button>
     `;
@@ -315,13 +311,13 @@ export function updateSelectedDisplay() {
   const naps = state.customNaps.length + _countExternalNaps();
 
   const flagHtml = code
-    ? `<img src="https://app.warera.io/images/map/${code}.png?v=21" alt="${nation.name}" onerror="this.style.display='none'" />`
+    ? `<img src="https://app.warera.io/images/map/${code}.png?v=21" alt="${escapeHtml(nation.name)}" onerror="this.style.display='none'" />`
     : `<span class="selected-flag-fallback">🌍</span>`;
 
   display.innerHTML = `
     <div class="selected-flag-wrap">${flagHtml}</div>
     <div class="selected-info-col">
-      <div class="selected-nation-name">${nation.name}</div>
+      <div class="selected-nation-name">${escapeHtml(nation.name)}</div>
       <div class="selected-nation-meta">${allies} allies · ${wars} wars · ${naps} NAPs</div>
     </div>
     <button id="deselect-btn" title="Deselect">✕</button>
@@ -350,12 +346,12 @@ export function updateNapListUI() {
     if (!n) return '';
     const code = (n.code || '').toLowerCase();
     const flagHtml = code
-      ? `<img class="nap-flag-thumb" src="https://app.warera.io/images/map/${code}.png?v=21" alt="${n.name}" onerror="this.style.display='none'">`
+      ? `<img class="nap-flag-thumb" src="https://app.warera.io/images/map/${code}.png?v=21" alt="${escapeHtml(n.name)}" onerror="this.style.display='none'">`
       : `<div class="nap-flag-placeholder">?</div>`;
     return `
       <div class="nap-item">
         ${flagHtml}
-        <span class="nap-name">${n.name}</span>
+        <span class="nap-name">${escapeHtml(n.name)}</span>
         <span class="remove-nap" data-id="${id}" title="Remove">✕</span>
       </div>`;
   }).join('');
@@ -385,13 +381,13 @@ export function updateExternalNapsUI() {
     if (!from) continue;
     const code = (from.code || '').toLowerCase();
     const flagHtml = code
-      ? `<img class="nap-flag-thumb" src="https://app.warera.io/images/map/${code}.png?v=21" alt="${from.name}" onerror="this.style.display='none'">`
+      ? `<img class="nap-flag-thumb" src="https://app.warera.io/images/map/${code}.png?v=21" alt="${escapeHtml(from.name)}" onerror="this.style.display='none'">`
       : `<div class="nap-flag-placeholder">?</div>`;
     html += `
       <div class="nap-item external">
         ${flagHtml}
-        <span class="nap-name">${from.name}</span>
-        <span class="nap-to" title="${toNames.join(', ')}">→ ${toNames.length > 2 ? toNames.slice(0, 2).join(', ') + ` +${toNames.length - 2}` : toNames.join(', ')}</span>
+        <span class="nap-name">${escapeHtml(from.name)}</span>
+        <span class="nap-to" title="${escapeHtml(toNames.join(', '))}">→ ${escapeHtml(toNames.length > 2 ? toNames.slice(0, 2).join(', ') + ` +${toNames.length - 2}` : toNames.join(', '))}</span>
       </div>`;
   }
   container.innerHTML = html;

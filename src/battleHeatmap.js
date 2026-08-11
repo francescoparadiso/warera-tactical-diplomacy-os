@@ -6,7 +6,6 @@ import { updateDynamicLegend } from './ui.js';
 
 const BATTLE_NEUTRAL = '#2a2d33';
 let liveInterval = null;
-let exitButton = null;
 let currentBattleId = null;
 let savedColoringMode = 'diplomacy';
 
@@ -144,6 +143,74 @@ function extractRankingItems(res) {
   return Array.isArray(items) ? items : [];
 }
 
+// battle.getLiveBattleData: dati "ufficiali" del round corrente (danni,
+// punti tick, isActive). Più precisi/aggiornati della somma dei ranking
+// per-nazione, usati da battleWall3D per i totali mostrati nell'HUD.
+function extractLiveData(res) {
+  if (!res) return null;
+  const battle = res.battle || null;
+  const round = res.round || null;
+  if (!battle && !round) return null;
+  return { battle, round };
+}
+
+// ==================== BATTLE WALL 3D (dati + live round in batch) ====================
+// Usate solo da battleWall3D.js. Ogni fetch include SEMPRE
+// battle.getLiveBattleData nello stesso POST batch (mai una chiamata
+// separata), così i danni mostrati nel muro 3D usano i valori ufficiali del
+// round invece della sola somma dei ranking per-nazione.
+
+// Chiamata iniziale (apertura overlay): dettagli battaglia (per il titolo) +
+// ranking attacker/defender + dati live del round, in UN SOLO POST.
+export async function fetchBattleWallData(battleId) {
+  try {
+    const calls = [
+      ['battle.getById', { battleId }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'attacker', dataType: 'damage', limit: 100 }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'defender', dataType: 'damage', limit: 100 }],
+      ['battle.getLiveBattleData', { battleId }],
+    ];
+    const [details, attackerRes, defenderRes, liveRes] = await trpcBatch(calls);
+    const attackerRanking = extractRankingItems(attackerRes);
+    const defenderRanking = extractRankingItems(defenderRes);
+    const nations = buildNationRanking(attackerRanking, defenderRanking);
+    const live = extractLiveData(liveRes);
+    return { details, nations, live };
+  } catch (err) {
+    console.error('fetchBattleWallData error:', err);
+    // Fallback: dati completi normali + tentativo separato per i dati live
+    const { details, nations } = await fetchBattleFullData(battleId);
+    let live = null;
+    try {
+      const [liveRes] = await trpcBatch([['battle.getLiveBattleData', { battleId }]]);
+      live = extractLiveData(liveRes);
+    } catch (_) { /* live data opzionale, non blocca l'apertura */ }
+    return { details, nations, live };
+  }
+}
+
+// Chiamata di poll (ogni secondo mentre l'overlay è aperto): ranking
+// attacker/defender + dati live del round, in UN SOLO POST.
+export async function fetchBattleWallPoll(battleId) {
+  try {
+    const calls = [
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'attacker', dataType: 'damage', limit: 100 }],
+      ['battleRanking.getRanking', { battleId, type: 'country', side: 'defender', dataType: 'damage', limit: 100 }],
+      ['battle.getLiveBattleData', { battleId }],
+    ];
+    const [attackerRes, defenderRes, liveRes] = await trpcBatch(calls);
+    const attackerRanking = extractRankingItems(attackerRes);
+    const defenderRanking = extractRankingItems(defenderRes);
+    const nations = buildNationRanking(attackerRanking, defenderRanking);
+    const live = extractLiveData(liveRes);
+    return { nations, live };
+  } catch (err) {
+    console.error('fetchBattleWallPoll error:', err);
+    const nations = await fetchBattleRanking(battleId);
+    return { nations, live: null };
+  }
+}
+
 // Ranking attacker + defender in un'unica richiesta batch (era Promise.all
 // di 2 fetch separate -> ora 1 solo POST). Vedi warera-api-batching.md.
 export async function fetchBattleRanking(battleId) {
@@ -230,7 +297,7 @@ export async function setBattleHeatmap(battleId) {
     const defenderId = details?.defender?.country;
     const getNation = (id) => {
       if (!id) return 'Unknown';
-      const nation = state.nazioniGlobal.find(n => n._id === id);
+      const nation = state.nationMap.get(id);
       return nation ? nation.name : id.slice(0, 6);
     };
     const battleName = `${getNation(attackerId)} vs ${getNation(defenderId)}`;
@@ -271,12 +338,10 @@ export function exitBattleHeatmap() {
     
     state.coloringMode = previousMode;
     state.battleHeatmapData = null;
-    state.previousColoringMode = null;
     currentBattleId = null;
     
     stopLiveUpdates();
     
-    if (exitButton) exitButton.style.display = 'none';
     
     import('./battleMarkers.js').then(m => {
       m.clearMarkers();
@@ -287,9 +352,7 @@ export function exitBattleHeatmap() {
     updateDynamicLegend();
   } else {
     state.battleHeatmapData = null;
-    state.previousColoringMode = null;
     currentBattleId = null;
-    if (exitButton) exitButton.style.display = 'none';
     renderMap();
     updateDynamicLegend();
   }

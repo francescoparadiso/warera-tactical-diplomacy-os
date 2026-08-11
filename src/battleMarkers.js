@@ -5,11 +5,39 @@ import maplibregl from 'maplibre-gl';
 import { fetchActiveBattles, setBattleHeatmap } from './battleHeatmap.js';
 import { API_BASE_URL } from './config.js';
 import { trpcBatch } from './utils.js';
+import { escapeHtml } from './utils.js';
 
-let markers = [];
+let markers = new Map(); // battleId -> { marker, el }
 let markersEnabled = true;
-let markerInterval = null;
 let lastSuccessfulBattles = [];
+
+// ==================== TREND / MOMENTUM (locale, nessuna chiamata extra) ====================
+// Confronta i danni totali di ogni battaglia fra un refresh e il successivo
+// (updateBattleMarkers gira ogni ~30s) per capire chi sta guadagnando terreno
+// ORA, senza fare nessuna richiesta API in piu': i totali arrivano gia' dal
+// batch esistente (getBattles + live data batch).
+const battleHistory = new Map(); // battleId -> { atk, def, ts }
+
+function computeTrend(battleId, atkDmg, defDmg) {
+  const now = Date.now();
+  const prev = battleHistory.get(battleId);
+  battleHistory.set(battleId, { atk: atkDmg, def: defDmg, ts: now });
+  if (!prev) return null;
+  const dtSec = (now - prev.ts) / 1000;
+  if (dtSec < 5) return prev.trend || null; // refresh troppo ravvicinato, tieni l'ultimo valore buono
+  const dAtk = Math.max(0, atkDmg - prev.atk);
+  const dDef = Math.max(0, defDmg - prev.def);
+  const rateAtk = dAtk / dtSec;
+  const rateDef = dDef / dtSec;
+  const rateSum = rateAtk + rateDef;
+  // balance > 0 = il difensore sta guadagnando terreno piu' in fretta ORA
+  // (stessa convenzione di segno usata in battleWall3D, per coerenza fra le viste).
+  const trend = rateSum > 0
+    ? { rateAtk, rateDef, balance: (rateDef - rateAtk) / rateSum }
+    : { rateAtk: 0, rateDef: 0, balance: 0 };
+  battleHistory.set(battleId, { atk: atkDmg, def: defDmg, ts: now, trend });
+  return trend;
+}
 
 // ==================== BATTLE TOOLTIP (pin in basso) ====================
 let pinnedBattleId = null;
@@ -25,7 +53,7 @@ function fmt(n) {
 // ==================== HELPERS: NATION (spostate PRIMA del tooltip) ====================
 function getNation(countryId) {
   if (!countryId) return null;
-  return state.nazioniGlobal.find(n => n._id === countryId) || null;
+  return state.nationMap.get(countryId) || null;
 }
 
 function getFlagUrl(code) {
@@ -33,21 +61,33 @@ function getFlagUrl(code) {
   return `https://app.warera.io/images/map/${code.toLowerCase()}.png?v=21`;
 }
 
+// Canvas 1x1 riusato + cache: prima ne veniva creato uno nuovo ad ogni
+// chiamata, 2 per marker ad ogni refresh (60 canvas ogni 30s con 30 battaglie).
+let _colorCanvasCtx = null;
+const _colorCache = new Map();
+
 function brightenAndSaturate(color, saturationBoost = 0.4) {
   if (!color) return '#e6edf3';
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 1;
-  const ctx = canvas.getContext('2d');
+  const cacheKey = `${color}|${saturationBoost}`;
+  const hit = _colorCache.get(cacheKey);
+  if (hit) return hit;
+
+  if (!_colorCanvasCtx) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    _colorCanvasCtx = canvas.getContext('2d', { willReadFrequently: true });
+  }
+  const ctx = _colorCanvasCtx;
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, 1, 1);
   const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-  
+
   const lum = (r * 299 + g * 587 + b * 114) / 1000;
   const brightFactor = lum < 80 ? 2.0 : lum < 140 ? 1.6 : lum < 180 ? 1.3 : 1.0;
   let nr = Math.min(255, Math.round(r * brightFactor));
   let ng = Math.min(255, Math.round(g * brightFactor));
   let nb = Math.min(255, Math.round(b * brightFactor));
-  
+
   const max = Math.max(nr, ng, nb);
   if (max > 0) {
     const avg = (nr + ng + nb) / 3;
@@ -56,7 +96,9 @@ function brightenAndSaturate(color, saturationBoost = 0.4) {
     ng = Math.min(255, Math.round(avg + (ng - avg) * boost));
     nb = Math.min(255, Math.round(avg + (nb - avg) * boost));
   }
-  return `rgb(${nr},${ng},${nb})`;
+  const out = `rgb(${nr},${ng},${nb})`;
+  _colorCache.set(cacheKey, out);
+  return out;
 }
 
 // ==================== TOOLTIP FUNCTIONS ====================
@@ -67,7 +109,7 @@ function getBattleTooltipEl() {
     el.id = 'battle-tooltip';
     el.style.cssText = `
       position: fixed;
-      bottom: 55px;
+      bottom: calc(55px + env(safe-area-inset-bottom, 0px));
       left: 50%;
       transform: translateX(-50%) translateY(8px);
       z-index: 9000;
@@ -75,15 +117,19 @@ function getBattleTooltipEl() {
       pointer-events: auto;
       opacity: 0;
       transition: opacity 0.18s ease, transform 0.18s ease;
-      max-width: 420px;
-      width: max-content;
+      /* Responsivo: mai piu' largo della viewport meno un margine, invece del
+         fisso max-width:420px che su schermi stretti (<440px) veniva tagliato
+         o spingeva oltre il bordo, rompendo il layout su mobile. */
+      width: min(420px, calc(100vw - 20px));
+      max-width: calc(100vw - 20px);
+      box-sizing: border-box;
     `;
     document.body.appendChild(el);
   }
   return el;
 }
 
-function buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg) {
+function buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, trend) {
   const attackerNation = getNation(battle.attacker?.country);
   const defenderNation = getNation(battle.defender?.country);
   const atkName = attackerNation?.name || 'Unknown';
@@ -116,31 +162,56 @@ function buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDm
   const subColor = isLight ? '#555' : '#8b949e';
   const flagUrl = (code) => `https://app.warera.io/images/map/${code}.png?v=21`;
 
+  // Layout responsivo: niente piu' min-width fisso a 260px, che su schermi
+  // molto stretti costringeva il contenitore oltre il bordo viewport.
+  // Con width:100% + box-sizing:border-box il box si adatta sempre al
+  // contenitore (gia' limitato a calc(100vw - 20px) in getBattleTooltipEl).
+  const isMobile = window.innerWidth <= 480;
+  const padding = isMobile ? '10px 12px' : '12px 16px';
+  const nameFontSize = isMobile ? '12px' : '13px';
+  const flagHeight = isMobile ? '14px' : '16px';
+
+  // ── Momentum: riga extra solo se abbiamo un dato attendibile (serve
+  //    almeno un refresh precedente). Stesso schema colori/etichette del
+  //    resto dell'app (>0 = difensore in vantaggio di ritmo). ──
+  let momentumHtml = '';
+  if (trend && Math.abs(trend.balance) >= 0.05) {
+    const defGaining = trend.balance > 0;
+    const momColor = defGaining ? defColor : atkColor;
+    const who = defGaining ? `🛡️ ${escapeHtml(defName)}` : `⚔️ ${escapeHtml(atkName)}`;
+    momentumHtml = `
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; color:${subColor};">
+        📊 Momentum: <strong style="color:${momColor};">${who} gaining ground</strong>
+      </div>
+    `;
+  }
+
   return `
     <div style="
       background: ${bg};
       border: 1px solid ${border};
       border-radius: 10px;
-      padding: 12px 16px;
+      padding: ${padding};
       box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-      min-width: 260px;
+      width: 100%;
+      box-sizing: border-box;
     ">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:${subColor};">
-          ⚔️ ${regionName || 'Battle'}${useLive ? ' <span style="color:#ff4444;">🔴 Live</span>' : ''}
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+        <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:${subColor}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">
+          ⚔️ ${escapeHtml(regionName || 'Battle')}${useLive ? ' <span style="color:#ff4444;">🔴 Live</span>' : ''}
         </span>
-        <span id="battle-tooltip-close" style="cursor:pointer; font-size:14px; color:${subColor}; padding:0 4px; line-height:1;">✕</span>
+        <span id="battle-tooltip-close" style="cursor:pointer; font-size:16px; color:${subColor}; padding:4px; line-height:1; flex-shrink:0;">✕</span>
       </div>
 
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-        <div style="display:flex; align-items:center; gap:5px; flex:1;">
-          ${defCode ? `<img src="${flagUrl(defCode)}" style="height:16px; border-radius:2px;" onerror="this.style.display='none'">` : ''}
-          <span style="font-size:13px; font-weight:700; color:${defColor};">${defName}</span>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:5px; flex:1 1 40%; min-width:0;">
+          ${defCode ? `<img src="${flagUrl(defCode)}" style="height:${flagHeight}; border-radius:2px; flex-shrink:0;" onerror="this.style.display='none'">` : ''}
+          <span style="font-size:${nameFontSize}; font-weight:700; color:${defColor}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(defName)}</span>
         </div>
         <span style="font-size:10px; color:${subColor}; flex-shrink:0;">vs</span>
-        <div style="display:flex; align-items:center; gap:5px; flex:1; justify-content:flex-end;">
-          <span style="font-size:13px; font-weight:700; color:${atkColor}; text-align:right;">${atkName}</span>
-          ${atkCode ? `<img src="${flagUrl(atkCode)}" style="height:16px; border-radius:2px;" onerror="this.style.display='none'">` : ''}
+        <div style="display:flex; align-items:center; gap:5px; flex:1 1 40%; min-width:0; justify-content:flex-end;">
+          <span style="font-size:${nameFontSize}; font-weight:700; color:${atkColor}; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(atkName)}</span>
+          ${atkCode ? `<img src="${flagUrl(atkCode)}" style="height:${flagHeight}; border-radius:2px; flex-shrink:0;" onerror="this.style.display='none'">` : ''}
         </div>
       </div>
 
@@ -148,26 +219,39 @@ function buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDm
         <div style="width:${defPct}%; background:${defColor}; box-shadow:0 0 6px ${defColor}66;"></div>
         <div style="width:${atkPct}%; background:${atkColor}; box-shadow:0 0 6px ${atkColor}66;"></div>
       </div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:10px; gap:8px;">
         <span style="font-size:11px; font-weight:700; color:${defColor};">${defPct}% · ${fmt(defDmg)}</span>
         <span style="font-size:11px; font-weight:700; color:${atkColor};">${fmt(atkDmg)} · ${atkPct}%</span>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px; color:${subColor};">
-        <div>🛡️ Difensore totale: <strong style="color:${textColor};">${fmt(totalDefenderDmg)}</strong></div>
-        <div>⚔️ Attaccante totale: <strong style="color:${textColor};">${fmt(totalAttackerDmg)}</strong></div>
+        <div>🛡️ Defender total: <strong style="color:${textColor};">${fmt(totalDefenderDmg)}</strong></div>
+        <div>⚔️ Attacker total: <strong style="color:${textColor};">${fmt(totalAttackerDmg)}</strong></div>
+        <div style="grid-column:1 / -1;">💥 Combined total: <strong style="color:${textColor};">${fmt(total)}</strong></div>
       </div>
+      ${momentumHtml}
 
-      <div style="margin-top:10px; font-size:10px; color:${subColor}; text-align:center;">
-        Clicca di nuovo per aprire la heatmap · ✕ per chiudere
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button id="battle-3d-btn" style="
+          flex:1; cursor:pointer; padding:9px 10px; border-radius:8px;
+          background:rgba(232,201,122,0.12); border:1px solid rgba(232,201,122,0.35);
+          color:#e8c97a; font-size:11px; font-weight:700; letter-spacing:.02em;
+        ">🎮 3D Battle View</button>
+      </div>
+      <div style="margin-top:8px; font-size:10px; color:${subColor}; text-align:center;">
+        Click again to open the heatmap · ✕ to close
       </div>
     </div>
   `;
 }
 
-function showBattleTooltip(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg) {
+function showBattleTooltip(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, trend) {
+  // I due tooltip vivono entrambi in basso al centro: se restano aperti
+  // insieme, quello battaglia (z-index 9000) copre quello nazione (3000) e
+  // intercetta i click destinati ai suoi link.
+  import('./nationTooltip.js').then(m => m.hide());
   const el = getBattleTooltipEl();
-  el.innerHTML = buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg);
+  el.innerHTML = buildBattleTooltipContent(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, trend);
   pinnedBattleId = battle._id;
 
   el.querySelector('#battle-tooltip-close')?.addEventListener('click', (e) => {
@@ -175,17 +259,27 @@ function showBattleTooltip(battle, regionName, liveData, totalAttackerDmg, total
     hideBattleTooltip();
   });
 
+  el.querySelector('#battle-3d-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    import('./battleWall3D.js').then(m => m.openBattleWall3D(battle._id));
+  });
+
+  el.style.pointerEvents = 'auto';
   requestAnimationFrame(() => {
     el.style.opacity = '1';
     el.style.transform = 'translateX(-50%) translateY(0)';
   });
 }
 
-function hideBattleTooltip() {
+export function hideBattleTooltip() {
   const el = document.getElementById('battle-tooltip');
   if (!el) return;
   el.style.opacity = '0';
   el.style.transform = 'translateX(-50%) translateY(8px)';
+  // CAUSA PRINCIPALE del bug "il link apre una battaglia": senza questo il
+  // tooltip resta invisibile ma cliccabile (pointer-events:auto) sopra la
+  // nation-tooltip, intercettando i click destinati ai suoi link.
+  el.style.pointerEvents = 'none';
   pinnedBattleId = null;
 }
 
@@ -204,10 +298,8 @@ export function toggleBattleMarkers(enabled) {
   } else {
     clearMarkers();
   }
-  const toggle = document.getElementById('toggle-battle-markers');
-  if (toggle) {
-    toggle.checked = enabled;
-  }
+  const toggle = document.getElementById('checkActiveBattles');
+  if (toggle) toggle.checked = enabled;
 }
 
 // ==================== HELPER: REGION DATA ====================
@@ -289,7 +381,9 @@ async function fetchLiveBattleDataBatch(battleIds) {
 }
 
 // ==================== BUILD MARKER ELEMENT ====================
-function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom) {
+// Genera SOLO il markup del marker (nessun DOM, nessun listener), cosi' puo'
+// essere riusato sia alla creazione sia agli aggiornamenti in place.
+function buildMarkerMarkup(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend) {
   const attackerNation = getNation(battle.attacker?.country);
   const defenderNation = getNation(battle.defender?.country);
   const attackerName = attackerNation?.name || 'Unknown';
@@ -318,9 +412,15 @@ function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefe
   const atkPct = showBar ? Math.round(attackerDmg / total * 100) : 50;
   const defPct = showBar ? 100 - atkPct : 50;
 
-  // Adattamento allo zoom
-  const isZoomLow = zoom < 3.5;
-  const isZoomMedium = zoom >= 3.5 && zoom < 5;
+  // Adattamento allo zoom. Su mobile lo zoom iniziale e' spesso sotto 3.5,
+  // il che faceva scattare quasi sempre la fascia "low" (marker minuscoli,
+  // testo a 6-7px, quasi impossibili da leggere o toccare su un telefono).
+  // Alziamo la soglia effettiva su mobile cosi' i marker restano leggibili
+  // e con un'area di tocco decente indipendentemente dal livello di zoom.
+  const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+  const effectiveZoom = isMobile ? Math.max(zoom, 3.5) : zoom;
+  const isZoomLow = effectiveZoom < 3.5;
+  const isZoomMedium = effectiveZoom >= 3.5 && effectiveZoom < 5;
   const fontSizeName = isZoomLow ? '7px' : (isZoomMedium ? '8px' : '9px');
   const fontSizeRegion = isZoomLow ? '6px' : (isZoomMedium ? '7px' : '8px');
   const fontSizePct = isZoomLow ? '6px' : (isZoomMedium ? '7px' : '8px');
@@ -338,11 +438,33 @@ function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefe
   const showFlags = true;
   const showPct = true;
 
-  const el = document.createElement('div');
-  el.className = 'battle-marker';
+  // ── Info aggiuntive (solo se c'e' spazio, fascia medium/high): danno
+  //    combinato e, se disponibile, un indicatore sintetico di chi sta
+  //    guadagnando terreno ORA (derivato localmente dal refresh precedente,
+  //    nessuna chiamata API in piu'). ──
+  let extraInfo = '';
+  if (!isZoomLow) {
+    const totalLine = total > 0
+      ? `<span style="color:rgba(255,255,255,0.4);">💥 ${fmt(total)}</span>`
+      : '';
+    let momentumLine = '';
+    if (trend && Math.abs(trend.balance) >= 0.08) {
+      const defGaining = trend.balance > 0;
+      const momColor = defGaining ? defColor : atkColor;
+      const arrow = defGaining ? '🛡️◀' : '▶⚔️';
+      momentumLine = `<span style="color:${momColor}; font-weight:700;">${arrow}</span>`;
+    }
+    if (totalLine || momentumLine) {
+      extraInfo = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:${marginBottom}; font-size:${fontSizePct};">
+          ${totalLine || '<span></span>'}
+          ${momentumLine}
+        </div>
+      `;
+    }
+  }
 
-  // DIFENSORE a SX, ATTACCANTE a DX
-  el.innerHTML = `
+  return `
     <div style="
       background: rgba(10,12,20,0.96);
       border: 1px solid rgba(255,255,255,0.1);
@@ -356,18 +478,18 @@ function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefe
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     " class="bm-inner">
       <div style="font-size:${fontSizeRegion}; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; text-align:center; color:${defColor}; margin-bottom:${marginBottom}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 0 8px ${defColor}33;">
-        ${regionLabel}${liveLabel}
+        ${escapeHtml(regionLabel)}${liveLabel}
       </div>
       <div style="display:flex; align-items:center; gap:${gap}; margin-bottom:${marginBottom};">
         <!-- DIFENSORE a SINISTRA -->
         <div style="display:flex; align-items:center; gap:2px; flex:1; min-width:0;">
           ${defenderCode && showFlags ? `<img src="${getFlagUrl(defenderCode)}" style="height:${isZoomLow ? '8px' : '10px'}; width:auto; border-radius:1px; flex-shrink:0; opacity:0.95; border: 1px solid rgba(255,255,255,0.08);" onerror="this.style.display='none'">` : ''}
-          <span style="font-size:${fontSizeName}; font-weight:700; color:${defColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 0 6px ${defColor}44;">${defenderName}</span>
+          <span style="font-size:${fontSizeName}; font-weight:700; color:${defColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 0 6px ${defColor}44;">${escapeHtml(defenderName)}</span>
         </div>
         <span style="font-size:${isZoomLow ? '5px' : '7px'}; color:rgba(255,255,255,0.18); flex-shrink:0; font-weight:500;">vs</span>
         <!-- ATTACCANTE a DESTRA -->
         <div style="display:flex; align-items:center; gap:2px; flex:1; min-width:0; justify-content:flex-end;">
-          <span style="font-size:${fontSizeName}; font-weight:700; color:${atkColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:right; text-shadow: 0 0 6px ${atkColor}44;">${attackerName}</span>
+          <span style="font-size:${fontSizeName}; font-weight:700; color:${atkColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:right; text-shadow: 0 0 6px ${atkColor}44;">${escapeHtml(attackerName)}</span>
           ${attackerCode && showFlags ? `<img src="${getFlagUrl(attackerCode)}" style="height:${isZoomLow ? '8px' : '10px'}; width:auto; border-radius:1px; flex-shrink:0; opacity:0.95; border: 1px solid rgba(255,255,255,0.08);" onerror="this.style.display='none'">` : ''}
         </div>
       </div>
@@ -390,42 +512,68 @@ function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefe
           <span style="font-size:${fontSizePct}; color:${atkColor}; font-weight:600; text-shadow: 0 0 4px ${atkColor}44; opacity:0.5;">50%</span>
         </div>
       `}
+      ${extraInfo}
     </div>
   `;
+}
 
-  const inner = el.querySelector('.bm-inner');
+// Aggiorna il contenuto di un marker gia' montato, senza ricrearlo.
+// I dati correnti vivono su el._battleData: i listener (agganciati una volta
+// sola alla creazione) li leggono da li', altrimenti resterebbero legati alla
+// battaglia catturata nella closure al primo render.
+function updateMarkerEl(el, battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend) {
+  el._battleData = { battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, trend };
+  el.innerHTML = buildMarkerMarkup(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend);
+}
+
+function buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend) {
+  const el = document.createElement('div');
+  el.className = 'battle-marker';
+  updateMarkerEl(el, battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend);
+
+  // .bm-inner viene ricreato ad ogni updateMarkerEl, quindi va risolto al
+  // momento dell'evento e non catturato una volta sola.
+  const hoverStyle = (borderColor, boxShadow, background) => {
+    const inner = el.querySelector('.bm-inner');
+    if (!inner) return;
+    inner.style.borderColor = borderColor;
+    inner.style.boxShadow = boxShadow;
+    inner.style.background = background;
+  };
   el.addEventListener('mouseenter', () => {
-    inner.style.borderColor = 'rgba(255,68,68,0.45)';
-    inner.style.boxShadow = '0 4px 18px rgba(255,68,68,0.18)';
-    inner.style.background = 'rgba(18,20,34,0.98)';
+    hoverStyle('rgba(255,68,68,0.45)', '0 4px 18px rgba(255,68,68,0.18)', 'rgba(18,20,34,0.98)');
   });
   el.addEventListener('mouseleave', () => {
-    inner.style.borderColor = 'rgba(255,255,255,0.1)';
-    inner.style.boxShadow = 'none';
-    inner.style.background = 'rgba(10,12,20,0.96)';
+    hoverStyle('rgba(255,255,255,0.1)', 'none', 'rgba(10,12,20,0.96)');
   });
-  
-  // Click handler
+
+  // Click handler: legge i dati correnti da el._battleData, non dalla closure
+  // (che resterebbe ferma ai valori del primo render).
   el.addEventListener('click', (e) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    const battleId = battle._id;
-    
+
+    const d = el._battleData;
+    if (!d) return;
+    const battleId = d.battle._id;
+
     // Se la heatmap è già aperta su questa battaglia, esci
-    if (state.coloringMode === 'battleHeatmap' && 
+    if (state.coloringMode === 'battleHeatmap' &&
         state.battleHeatmapData?.battleId === battleId) {
       import('./battleHeatmap.js').then(m => m.exitBattleHeatmap());
       return;
     }
-    
-    // Mostra il tooltip
-    showBattleTooltip(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg);
-    
-    // Apri la heatmap
+
+    showBattleTooltip(d.battle, d.regionName, d.liveData, d.totalAttackerDmg, d.totalDefenderDmg, d.trend);
     setBattleHeatmap(battleId);
   });
 
+  // Nota: niente hack di padding/margin negativo sull'elemento radice per
+  // allargare l'area di tocco — maplibre calcola l'ancoraggio del marker
+  // sulla dimensione di questo stesso elemento, e alterarla rischierebbe di
+  // disallineare il marker dal punto geografico reale. L'area di tocco resta
+  // comunque piu' grande su mobile grazie alla fascia di zoom minima
+  // "medium" forzata sopra (minWidth/padding piu' generosi).
   Object.assign(el.style, { pointerEvents: 'auto', zIndex: 2000 });
   return el;
 }
@@ -449,23 +597,24 @@ export async function updateBattleMarkers() {
     if (battles && battles.length > 0) {
       // Salva i dati validi
       lastSuccessfulBattles = battles;
-      
-      // Ora possiamo cancellare i vecchi marker e crearne di nuovi
-      clearMarkers();
-      
+
       const zoom = state.map.getZoom();
 
-      // Dati live: 1 solo POST batch per tutte le battaglie (era Promise.all
-      // a gruppi di 5 -> più richieste HTTP separate).
+      // Dati live: 1 solo POST batch per tutte le battaglie.
       const battleIds = battles.map(b => b._id);
       const liveDataMap = await fetchLiveBattleDataBatch(battleIds);
 
-      // Dati regione: 1 solo POST batch per tutte le regioni non in cache
-      // (era una fetch sequenziale per battaglia dentro il loop sotto).
+      // Dati regione: 1 solo POST batch per tutte le regioni non in cache.
       const regionIds = battles
         .map(b => b.regionId || b.defender?.region || b.attacker?.region)
         .filter(Boolean);
       await fetchRegionDataBatch(regionIds);
+
+      // DIFF invece di clearMarkers()+ricrea-tutto: prima ad ogni giro (30s)
+      // ogni Marker veniva distrutto e ricostruito, causando flicker e churn
+      // di DOM. Ora si aggiorna in place il contenuto di quelli esistenti e si
+      // creano/rimuovono solo quelli effettivamente cambiati.
+      const seen = new Set();
 
       for (const battle of battles) {
         const regionId = battle.regionId || battle.defender?.region || battle.attacker?.region;
@@ -491,9 +640,36 @@ export async function updateBattleMarkers() {
         const totalDefenderDmg = battle.defender?.damages || 0;
         const liveData = liveDataMap.get(battle._id);
 
-        const el = buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom);
-        const marker = new maplibregl.Marker({ element: el }).setLngLat(centroid).addTo(state.map);
-        markers.push(marker);
+        // Stesso criterio usato nel markup per scegliere i danni "effettivi"
+        // (live se disponibili, altrimenti i totali): il trend deve seguire
+        // la stessa fonte, altrimenti oscillerebbe ogni volta che live/non
+        // live si alternano.
+        const effAtk = (liveData && (liveData.attackerDmg > 0 || liveData.defenderDmg > 0))
+          ? liveData.attackerDmg : totalAttackerDmg;
+        const effDef = (liveData && (liveData.attackerDmg > 0 || liveData.defenderDmg > 0))
+          ? liveData.defenderDmg : totalDefenderDmg;
+        const trend = computeTrend(battle._id, effAtk, effDef);
+
+        seen.add(battle._id);
+        const existing = markers.get(battle._id);
+
+        if (existing) {
+          // Aggiorna in place: niente rimozione/riaggiunta del marker.
+          updateMarkerEl(existing.el, battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend);
+          existing.marker.setLngLat(centroid);
+        } else {
+          const el = buildMarkerEl(battle, regionName, liveData, totalAttackerDmg, totalDefenderDmg, zoom, trend);
+          const marker = new maplibregl.Marker({ element: el }).setLngLat(centroid).addTo(state.map);
+          markers.set(battle._id, { marker, el });
+        }
+      }
+
+      // Rimuovi solo i marker di battaglie non piu' attive
+      for (const [battleId, entry] of markers) {
+        if (seen.has(battleId)) continue;
+        try { entry.marker.remove(); } catch (e) {}
+        markers.delete(battleId);
+        battleHistory.delete(battleId); // niente memoria di trend per battaglie chiuse
       }
     }
   } catch (err) {
@@ -504,10 +680,10 @@ export async function updateBattleMarkers() {
 
 // ==================== CLEAR MARKERS ====================
 export function clearMarkers() {
-  markers.forEach(m => {
-    try { m.remove(); } catch(e) {}
+  markers.forEach(({ marker }) => {
+    try { marker.remove(); } catch (e) {}
   });
-  markers = [];
+  markers.clear();
 }
 
 // ==================== FORCE UPDATE ====================
@@ -516,29 +692,7 @@ export function forceUpdateBattleMarkers() {
   updateBattleMarkers();
 }
 
-// ==================== START/STOP AUTO UPDATE ====================
-export function startMarkerUpdates(intervalMs = 30000) {
-  stopMarkerUpdates();
-  markerInterval = setInterval(updateBattleMarkers, intervalMs);
-}
-
-export function stopMarkerUpdates() {
-  if (markerInterval) {
-    clearInterval(markerInterval);
-    markerInterval = null;
-  }
-}
-
-// ==================== INIT ====================
-export function initBattleMarkers() {
-  const toggle = document.getElementById('toggle-battle-markers');
-  if (toggle) {
-    toggle.addEventListener('change', function() {
-      toggleBattleMarkers(this.checked);
-    });
-    markersEnabled = toggle.checked;
-  }
-  // Carica i marker subito
-  updateBattleMarkers();
-  startMarkerUpdates(30000);
-}
+// NOTA: initBattleMarkers()/startMarkerUpdates() sono state rimosse.
+// Non erano chiamate da nessun modulo e cercavano l'id 'toggle-battle-markers'
+// che non esiste nell'HTML (l'id reale e' 'checkActiveBattles'). Il ciclo di
+// aggiornamento e' gestito da main.js, il toggle da toggleBattleMarkers().

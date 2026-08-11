@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { escapeHtml } from './utils.js';
 
 // URL del tool esterno "PoliticalView". Se il formato del parametro cambia,
 // aggiorna solo questa riga.
@@ -58,8 +59,8 @@ function buildContent(nation, code, blocInfo, isPinned) {
       ? `<img class="nt-flag" src="${flagUrl}" alt="" onerror="this.style.display='none'">`
       : `<span class="nt-emoji">${getFlagEmoji(code)}</span>`
     }
-      <span class="nt-name">${nation.name}</span>
-      ${blocInfo ? `<span class="nt-bloc" style="background:${blocInfo.color}22;color:${blocInfo.color}">${blocInfo.name}</span>` : ''}
+      <span class="nt-name">${escapeHtml(nation.name)}</span>
+      ${blocInfo ? `<span class="nt-bloc" style="background:${blocInfo.color}22;color:${blocInfo.color}">${escapeHtml(blocInfo.name)}</span>` : ''}
     </div>
     <div class="nt-grid">
       <div class="nt-item"><span class="nt-icon">👥</span><span class="nt-val">${fmt(pop)}</span><span class="nt-lbl">pop.</span></div>
@@ -68,7 +69,7 @@ function buildContent(nation, code, blocInfo, isPinned) {
       ${dev != null ? `<div class="nt-item"><span class="nt-icon">📈</span><span class="nt-val">${dev.toFixed(1)}</span><span class="nt-lbl">dev.</span></div>` : ''}
       <div class="nt-item"><span class="nt-icon">🛡️</span><span class="nt-val">${defPacts}</span><span class="nt-lbl">def pacts</span></div>
       <div class="nt-item"><span class="nt-icon">⚔️</span><span class="nt-val">${wars}</span><span class="nt-lbl">wars</span></div>
-      ${swornEnemyName ? `<div class="nt-item" style="color:#e67e22;"><span class="nt-icon">⚡</span><span class="nt-val">${swornEnemyName}</span><span class="nt-lbl">sworn enemy</span></div>` : ''}
+      ${swornEnemyName ? `<div class="nt-item" style="color:#e67e22;"><span class="nt-icon">⚡</span><span class="nt-val">${escapeHtml(swornEnemyName)}</span><span class="nt-lbl">sworn enemy</span></div>` : ''}
     </div>
   `;
 // nationTooltip.js - sezione BATTLE HEATMAP DATI
@@ -170,13 +171,50 @@ function show(nationId, x, y, pinned = false) {
   isPinned = pinned;
 
   if (pinned || isMobile) {
+    // Chiude il tooltip battaglia, che occupa la stessa area in basso al
+    // centro con z-index piu' alto e ruberebbe i click (es. il link
+    // "View Political Situation" apriva invece una battaglia).
+    import('./battleMarkers.js').then(m => m.hideBattleTooltip());
+    tooltip.style.zIndex = '9500';
     tooltip.classList.add('pinned');
     tooltip.style.left = '50%';
     tooltip.style.top = 'auto';
-    tooltip.style.setProperty('bottom', window.innerWidth <= 768 ? '45px' : '55px', 'important');
+    tooltip.style.setProperty(
+      'bottom',
+      `calc(${window.innerWidth <= 768 ? '45px' : '55px'} + env(safe-area-inset-bottom, 0px))`,
+      'important'
+    );
     tooltip.style.transform = 'translateX(-50%)';
+    // La classe CSS '.nation-tooltip' puo' avere una larghezza fissa pensata
+    // per desktop: su schermi stretti spingeva il box oltre il bordo della
+    // viewport (o lo tagliava), rompendo completamente il layout su mobile.
+    // Qui la larghezza viene sempre vincolata alla viewport reale, e in
+    // altezza si aggiunge scroll invece di traboccare fuori schermo quando
+    // il contenuto (specie con la sezione battle-heatmap) e' troppo alto
+    // per un telefono in orizzontale.
+    tooltip.style.setProperty('width', 'min(360px, calc(100vw - 24px))', 'important');
+    tooltip.style.setProperty('max-width', 'calc(100vw - 24px)', 'important');
+    tooltip.style.setProperty('box-sizing', 'border-box', 'important');
+    tooltip.style.setProperty('max-height', 'calc(100vh - 90px)', 'important');
+    tooltip.style.setProperty('overflow-y', 'auto', 'important');
+    tooltip.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+    // Pinnato: deve essere cliccabile (link "View Political Situation",
+    // bottone di chiusura implicito via click-fuori gestito altrove).
+    tooltip.style.pointerEvents = 'auto';
   } else {
+    tooltip.style.zIndex = '';
     tooltip.classList.remove('pinned');
+    // BUG: hover (non pinnato) segue il mouse e puo' finire proprio sopra un
+    // marker battaglia mentre ci si avvicina per cliccarlo. Senza questo, il
+    // click colpiva il tooltip nazione invece del marker sottostante: il
+    // marker non riceveva mai il click (restava "non pinnato") e il click,
+    // arrivato al document su un target che non e' ne' #battle-tooltip ne'
+    // .battle-marker, faceva scattare l'handler "click fuori" di
+    // battleMarkers.js chiudendo un eventuale tooltip battaglia gia' aperto —
+    // da qui l'effetto "si incastra con la nation tooltip". In hover il
+    // tooltip nazione non ha bisogno di essere cliccabile (nessun link/azione
+    // qui dentro), quindi lo si rende trasparente ai click.
+    tooltip.style.pointerEvents = 'none';
     tooltip.style.visibility = 'hidden';
     tooltip.classList.add('visible');
     const rect = tooltip.getBoundingClientRect();
@@ -195,7 +233,14 @@ function show(nationId, x, y, pinned = false) {
 
 export function hide() {
   const tooltip = document.getElementById('nation-tooltip');
-  if (tooltip) tooltip.classList.remove('visible');
+  if (tooltip) {
+    tooltip.classList.remove('visible');
+    // Stesso motivo del fix in show(): senza azzerarlo qui, un tooltip
+    // uscito da uno stato pinnato (pointer-events:auto) restava cliccabile
+    // anche da nascosto/in transizione, potendo di nuovo intercettare un
+    // click destinato a un marker battaglia sottostante.
+    tooltip.style.pointerEvents = 'none';
+  }
   currentId = null;
   isPinned = false;
 }
@@ -271,6 +316,9 @@ export function initNationTooltip(map) {
   });
 
   document.addEventListener('click', (e) => {
+    // Lascia passare i click sui link interni al tooltip senza chiuderlo
+    // prima che il browser apra la nuova scheda.
+    if (e.target.closest('.nt-political-btn')) return;
     if (isPinned && !e.target.closest('#nation-tooltip')) {
       hide();
       hoverSuppressed = true;

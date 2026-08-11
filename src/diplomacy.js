@@ -9,7 +9,7 @@ export function getAllianceAllies(countryId) {
   const allianceIds = state.nationAlliancesMap.get(countryId);
   if (allianceIds) {
     allianceIds.forEach(allianceId => {
-      const alliance = state.alliancesList.find(a => a._id === allianceId);
+      const alliance = state.allianceMap.get(allianceId);
       if (alliance) {
         alliance.memberCountries.forEach(m => {
           if (m.country && m.country !== countryId) allies.add(m.country);

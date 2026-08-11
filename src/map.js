@@ -11,7 +11,7 @@ import {
   buildDiplomacyColorExpression, buildBlocColorExpression, buildOriginalBlocColorExpression, buildOriginalColorExpression,
   getIndirectAllies, getEnemyAllies, getAllianceAllies, getDefensivePactAllies, getDualAllyDefensiveIds,
 } from './diplomacy.js';
-import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage } from './labels.js';
+import { initLabelCanvas, preloadAllFlags, buildOriginalLabels, loadFlagImage, invalidateLabelCache } from './labels.js';
 import { updateDynamicLegend, updateStats, updateSelectedDisplay } from './ui.js';
 import { buildPopulationColorExpression, buildPopulationTextExpression } from './population.js';
 import { buildWeeklyDamageColorExpression } from './weeklyDamage.js';
@@ -68,6 +68,7 @@ export async function setupMapLayers() {
   state.labelsData = state.mapDataGlobal.countryLabels?.geometries || topoData.objects.countryLabels?.geometries || [];
 
   computeCentroids();
+  invalidateLabelCache();
 
   _addOrUpdateSource(SRC_REGIONS, { type: 'geojson', data: state.baseGeoJSON });
 
@@ -241,7 +242,11 @@ export function renderMap() {
     state.map.setPaintProperty(LYR_FILL, 'fill-opacity', 0.9);
   }
 
-  if (state.map.getSource(SRC_LABELS)) {
+  // _buildLabelsWithPopulation ricrea centinaia di Feature: ha senso solo nei
+  // modi che usano davvero populationText. Negli altri era lavoro sprecato ad
+  // ogni renderMap (inclusi i refresh live della heatmap ogni 10s).
+  const needsLabelSource = state.coloringMode === 'population' || state.coloringMode === 'weeklyDamage';
+  if (needsLabelSource && state.map.getSource(SRC_LABELS)) {
     state.map.getSource(SRC_LABELS).setData({
       type: 'FeatureCollection',
       features: _buildLabelsWithPopulation()
@@ -260,15 +265,15 @@ function _setLayerVisibility(id, visible) {
   if (state.map.getLayer(id)) state.map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
 }
 
+// Prima questa funzione faceva JSON.parse(JSON.stringify(topoData)) su tutto
+// il TopoJSON (potenzialmente svariati MB, in modo sincrono: era la causa piu'
+// probabile dello scatto al primo caricamento) solo per riscrivere countryId
+// con initialCountryId e poi confrontarlo.
+// Il filtro di topojson.mesh riceve gia' le geometrie: basta confrontare
+// direttamente initialCountryId. Nessuna copia, stesso risultato.
 function _getOriginalBordersMesh(topoData) {
-  const cloned = JSON.parse(JSON.stringify(topoData));
-  const regions = cloned.objects.regions;
-  if (regions?.geometries) {
-    regions.geometries.forEach(geom => {
-      if (geom.properties?.initialCountryId) geom.properties.countryId = geom.properties.initialCountryId;
-    });
-  }
-  return topojson.mesh(cloned, cloned.objects.regions, (a, b) => a !== b && a.properties.countryId !== b.properties.countryId);
+  const origId = (g) => g.properties?.initialCountryId ?? g.properties?.countryId;
+  return topojson.mesh(topoData, topoData.objects.regions, (a, b) => a !== b && origId(a) !== origId(b));
 }
 
 function _onRegionClick(e) {
@@ -339,21 +344,28 @@ export function resetDiplomazia() {
   document.getElementById('checkExtended').checked = false;
   document.getElementById('napInput').value = '';
   document.getElementById('checkExcludeExternalNaps').checked = false;
-  setMapSource(false);
+  // setMapSource e setColoringMode chiamano gia' renderMap(): prima veniva
+  // eseguita 3 volte di fila ad ogni reset.
+  state.mapSource = 'actual';
+  _syncMapSourceUI(false);
   setColoringMode('diplomacy');
   import('./naps.js').then(({ updateNapListUI }) => updateNapListUI());
-  renderMap();
 }
 
-export function setMapSource(isOriginal) {
-  state.mapSource = isOriginal ? 'original' : 'actual';
+function _syncMapSourceUI(isOriginal) {
   const lA = document.getElementById('label-actual');
   const lO = document.getElementById('label-original');
   if (lA && lO) {
     lA.classList.toggle('active', !isOriginal);
     lO.classList.toggle('active', isOriginal);
   }
-  document.getElementById('toggle-borders').checked = isOriginal;
+  const tb = document.getElementById('toggle-borders');
+  if (tb) tb.checked = isOriginal;
+}
+
+export function setMapSource(isOriginal) {
+  state.mapSource = isOriginal ? 'original' : 'actual';
+  _syncMapSourceUI(isOriginal);
   renderMap();
 }
 
@@ -382,6 +394,13 @@ export function applyTheme() {
 
 export function setColoringMode(mode) {
   state.coloringMode = mode;
+
+  // battleHeatmap non ha un pulsante nella barra: senza questo, tutti i
+  // pulsanti restano spenti e la UI sembra "senza modalita'". Marchiamo la
+  // barra cosi' il CSS puo' mostrare uno stato dedicato.
+  const modeBar = document.getElementById('mode-slider')?.parentElement;
+  if (modeBar) modeBar.classList.toggle('heatmap-active', mode === 'battleHeatmap');
+
   
   // Aggiorna i pulsanti della prima riga
   document.getElementById('mode-diplomacy').classList.toggle('active', mode === 'diplomacy');
@@ -433,15 +452,6 @@ export function setColoringMode(mode) {
       state._lastBottomMode = mode;
     }
   }
-  
-  // Assicura che le modalità siano attive correttamente
-  const topModes = ['diplomacy', 'blocs', 'sphereOfInfluence'];
-  const bottomModes = ['weeklyDamage', 'population'];
-  
-  // Reset visivo per tutti i pulsanti
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    // I pulsanti sono gestiti dai toggle individuali sopra
-  });
   
   renderMap();
 }

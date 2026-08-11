@@ -2,7 +2,12 @@
 //export const API_BASE_URL = 'https://apidev.warera.io';  // per test
 export const API_BASE_URL = 'https://api6.warera.io'; // per produzione
 export const CACHE_API_BASE_URL = 'https://gateway.warerastats.io'
-export const API_KEY = 'wae_ea8085c61df10b92478347cecfeb7006844f1fb0e0e066ee462665e471141849';
+// ⚠️ RIMOSSA: la chiave era in chiaro nel bundle servito al browser, quindi
+// leggibile da chiunque aprisse i devtools. Nessun modulo la usava davvero
+// (fetchWithAuth non era chiamata da nessuna parte).
+// Se in futuro serve una chiamata autenticata, va fatta dietro un proxy
+// server-side: qualunque valore messo qui e' pubblico.
+// REVOCA la vecchia chiave sul pannello Warera, e' gia' stata esposta.
 
 export const COLORS = {
   SELECTED: '#ffcc00',

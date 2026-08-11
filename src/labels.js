@@ -39,6 +39,40 @@ export function resizeLabelCanvas() {
   state.labelCtx.scale(r, r);
 }
 
+// ==================== CACHE PER IL DISEGNO (perf) ====================
+// drawLabels gira ad OGNI frame (map.on('render')): durante pan/zoom sono ~60
+// esecuzioni al secondo. Prima ad ogni frame si copiava e ordinava l'intero
+// array di label e si chiamava measureText per ognuna. Ora l'ordinamento e le
+// larghezze del testo sono cachati e ricalcolati solo quando cambiano davvero.
+let _sortedCache = { src: null, list: null };
+const _textWidthCache = new Map();
+
+function _getSortedLabels(sourceLabels) {
+  if (_sortedCache.src === sourceLabels && _sortedCache.list) return _sortedCache.list;
+  const list = [...sourceLabels].sort(
+    (a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0)
+  );
+  _sortedCache = { src: sourceLabels, list };
+  return list;
+}
+
+function _measure(ctx, text, font) {
+  const key = font + '|' + text;
+  let w = _textWidthCache.get(key);
+  if (w === undefined) {
+    ctx.font = font;
+    w = ctx.measureText(text).width;
+    _textWidthCache.set(key, w);
+  }
+  return w;
+}
+
+// Da chiamare quando labelsData/originalLabelsData vengono rigenerati.
+export function invalidateLabelCache() {
+  _sortedCache = { src: null, list: null };
+  _textWidthCache.clear();
+}
+
 // ==================== DISEGNO LABEL ====================
 export function drawLabels() {
   if (!state.labelCanvas || !state.labelCtx || !state.labelsData.length) return;
@@ -63,7 +97,7 @@ export function drawLabels() {
 
   const zoom = state.map.getZoom();
   const sourceLabels = state.mapSource === 'original' ? state.originalLabelsData : state.labelsData;
-  const sorted = [...sourceLabels].sort((a, b) => (b.properties.flagSize || 0) - (a.properties.flagSize || 0));
+  const sorted = _getSortedLabels(sourceLabels);
   const drawnBoxes = [];
 
   function intersects(b1, b2) {
@@ -74,7 +108,8 @@ export function drawLabels() {
     const props = label.properties;
     const coords = label.coordinates;
     if (!coords) return;
-    if (state.coloringMode === 'blocs' && zoom < 3.3) return;
+    // era zoom < 3.3: le label nazione sparivano quasi sempre in modalita' blocs
+    if (state.coloringMode === 'blocs' && zoom < 2.8) return;
     if (zoom < 2.5 && props.flagSize < 0.15) return;
     if (zoom < 3.5 && props.flagSize < 0.08) return;
 
@@ -86,8 +121,9 @@ export function drawLabels() {
     const scale = zoom < 2.5 ? 1.4 : zoom < 3 ? 1.3 : zoom < 4 ? 1.2 : zoom < 5 ? 1.0 : 0.9;
     const fontSize = Math.round(baseSize * scale);
 
-    ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-    const textWidth = ctx.measureText(nameStr).width;
+    const nameFont = `bold ${fontSize}px "JetBrains Mono", monospace`;
+    const textWidth = _measure(ctx, nameStr, nameFont);
+    ctx.font = nameFont;
     const nationBox = { xMin: pt.x - textWidth / 2 - 1, xMax: pt.x + textWidth / 2 + 1, yMin: pt.y - fontSize / 2 - 1, yMax: pt.y + fontSize / 2 + 1 };
 
     if (state.coloringMode === 'blocs' && blocBBoxes.some(b => intersects(nationBox, b))) return;
@@ -229,9 +265,13 @@ function _drawBlocLabels(ctx, W, H) {
   const bboxes = [];
   if (!state.externalBlocsInfo.length) return bboxes;
   const zoom = state.map.getZoom();
-  const fontSize = Math.max(28, Math.min(56, 32 * (1 + (zoom - 2) * 0.2)));
-  ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
-  const MARGIN = 30;
+  // Prima 28-56px: su schermi piccoli restavano solo 3-4 nomi giganti.
+  // Ora la dimensione parte piu' bassa e scala col viewport.
+  const vwScale = Math.min(1, Math.max(0.6, W / 1200));
+  const fontSize = Math.max(16, Math.min(40, 22 * (1 + (zoom - 2) * 0.18)) * vwScale);
+  const blocFont = `bold ${fontSize}px "JetBrains Mono", monospace`;
+  ctx.font = blocFont;
+  const MARGIN = Math.round(fontSize * 0.5);
 
   function intersects(a, b) {
     return !(b.xMin > a.xMax || b.xMax < a.xMin || b.yMin > a.yMax || b.yMax < a.yMin);
@@ -253,8 +293,7 @@ function _drawBlocLabels(ctx, W, H) {
     const basePt = state.map.project([bloc.labelLng, bloc.labelLat]);
     if (basePt.x < -100 || basePt.x > W + 100 || basePt.y < -60 || basePt.y > H + 60) continue;
 
-    const metrics = ctx.measureText(bloc.name);
-    const textWidth = metrics.width;
+    const textWidth = _measure(ctx, bloc.name, blocFont);
 
     let placed = false;
     let finalPt = basePt;

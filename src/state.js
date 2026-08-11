@@ -33,6 +33,9 @@ export const state = {
   battleHeatmapData: null,
   regionData: null,
   regionCache: new Map(), // regionId → { position: [lng,lat], name: string }
-  previousColoringMode: 'diplomacy',
+  // Indici O(1) per evitare le scansioni lineari (nazioniGlobal.find /
+  // alliancesList.find) che erano sparse dentro loop annidati.
+  nationByCode: new Map(),   // 'IT' (uppercase) → nation
+  allianceMap: new Map(),    // allianceId → alliance
 
 };

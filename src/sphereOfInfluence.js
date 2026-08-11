@@ -39,7 +39,7 @@ export function buildSphereMapFromData(rows) {
     const proxyStr = row.codici_proxy?.trim();
     if (!primaryCode || !proxyStr) continue;
 
-    const primary = state.nazioniGlobal.find(n => n.code?.toUpperCase() === primaryCode);
+    const primary = state.nationByCode.get(primaryCode);
     if (!primary) continue;
 
     const labelLng = parseFloat(row.label_lng);
@@ -47,7 +47,7 @@ export function buildSphereMapFromData(rows) {
 
     const proxyIds = [];
     proxyStr.split(',').map(c => c.trim().toUpperCase()).filter(Boolean).forEach(code => {
-      const proxy = state.nazioniGlobal.find(n => n.code?.toUpperCase() === code);
+      const proxy = state.nationByCode.get(code);
       if (!proxy || proxy._id === primary._id) return;
       state.sphereMap.set(proxy._id, primary._id);
       proxyIds.push(proxy._id);

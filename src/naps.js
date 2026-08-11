@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { parseCSV, showToast } from './utils.js';
 import { EXTERNAL_NAPS_URL } from './config.js';
 import { renderMap } from './map.js';
-import { updateExternalNapsUI, updateNapBadge } from './ui.js';
+import { updateExternalNapsUI, updateNapListUI } from './ui.js';
 
 // ==================== NAP ESTERNI ====================
 export async function loadExternalNaps() {
@@ -20,11 +20,11 @@ export async function loadExternalNaps() {
       const napConStr   = row.nap_con?.trim();
       if (!nationACode || !napConStr) continue;
 
-      const countryA = state.nazioniGlobal.find(n => n.code?.toUpperCase() === nationACode);
+      const countryA = state.nationByCode.get(nationACode);
       if (!countryA) continue;
 
       for (const targetCode of napConStr.split(',').map(c => c.trim().toUpperCase())) {
-        const countryB = state.nazioniGlobal.find(n => n.code?.toUpperCase() === targetCode);
+        const countryB = state.nationByCode.get(targetCode);
         if (!countryB) continue;
         const key    = `${countryA._id}-${countryB._id}`;
         const revKey = `${countryB._id}-${countryA._id}`;
@@ -50,7 +50,8 @@ export function aggiungiNap() {
   const val   = input.value.trim();
   if (!val) { showToast('Enter a nation name', 'error'); return; }
 
-  const found = state.nazioniGlobal.find(n => n.name.toLowerCase() === val.toLowerCase());
+  const lower = val.toLowerCase();
+  const found = state.nazioniGlobal.find(n => n.name.toLowerCase() === lower);
   if (!found)                              { showToast(`Nation "${val}" not found`, 'error'); return; }
   if (state.customNaps.includes(found._id)){ showToast(`${found.name} already in NAP`, 'error'); return; }
   if (state.selectedCountryId === found._id){ showToast('Cannot add selected nation', 'error'); return; }
@@ -68,22 +69,7 @@ export function rimuoviNap(id) {
   renderMap();
 }
 
-export function updateNapListUI() {
-  const container = document.getElementById('napList');
-  updateNapBadge(state.customNaps.length);
-
-  if (!state.customNaps.length) {
-    container.innerHTML = '<div class="empty-state">No manual NAPs set</div>';
-    return;
-  }
-  container.innerHTML = state.customNaps
-    .map(id => {
-      const n = state.nationMap.get(id);
-      return n ? `<div class="nap-item"><span style="font-weight:600">${n.name}</span><span class="remove-nap" data-id="${id}">✕</span></div>` : '';
-    })
-    .join('');
-
-  container.querySelectorAll('.remove-nap').forEach(btn => {
-    btn.addEventListener('click', () => rimuoviNap(btn.dataset.id));
-  });
-}
+// updateNapListUI vive in ui.js (versione con bandiere): qui la ri-esportiamo
+// per non rompere gli import esistenti. Prima c'erano due implementazioni
+// diverse e aggiungendo un NAP si perdevano le bandiere fino al reload.
+export { updateNapListUI } from './ui.js';

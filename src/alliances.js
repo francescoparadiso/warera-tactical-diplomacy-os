@@ -94,6 +94,7 @@ function geometricMedian(points, iterations = 60) {
 export function processAlliancesData(alliances) {
   // Se non ci sono alleanze, pulisci tutto
   if (!alliances.length) {
+    state.allianceMap.clear();
     state.externalBlocsInfo = [];
     state.blocColorMap.clear();
     state.multiBlocMap.clear();
@@ -101,6 +102,11 @@ export function processAlliancesData(alliances) {
     if (state.coloringMode === 'blocs') renderMap();
     return;
   }
+
+  // 0. Indice allianceId -> alliance (evita alliancesList.find dentro i loop
+  //    di getAllianceAllies/getIndirectAllies, che erano O(n^2)).
+  state.allianceMap.clear();
+  for (const ally of alliances) state.allianceMap.set(ally._id, ally);
 
   // 1. Mappa allianceId -> colore
   state.allianceColorMap.clear();

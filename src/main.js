@@ -11,6 +11,8 @@ import { buildOriginalLabels, loadFlagImage } from './labels.js';
 import { API_BASE_URL } from './config.js';
 import { updateBattleMarkers } from './battleMarkers.js';
 import { loadRegions } from './regions.js';
+let battleMarkersTimer = null;
+
 // ==================== CARICAMENTO DATI ====================
 async function refreshData() {
   try {
@@ -28,7 +30,11 @@ async function refreshData() {
     state.mapDataGlobal = mapData.result.data;
 
     state.nationMap.clear();
-    state.nazioniGlobal.forEach(n => state.nationMap.set(n._id, n));
+    state.nationByCode.clear();
+    state.nazioniGlobal.forEach(n => {
+      state.nationMap.set(n._id, n);
+      if (n.code) state.nationByCode.set(n.code.toUpperCase(), n);
+    });
 
     // ----- CARICAMENTO ALLEANZE CON GET BATCH -----
     const uniqueAllianceIds = [...new Set(
@@ -87,7 +93,6 @@ async function refreshData() {
 
     await setupMapLayers();
     await loadRegions();
-    setInterval(updateBattleMarkers, 60000);
 
     // Color map base
     state.nationBaseColorMap.clear();
@@ -110,14 +115,19 @@ async function refreshData() {
     allianceModule.processAlliancesData(alliances);
     // ----------------------------------------------------------------------------
 
+    // loadExternalNaps era importata ma mai chiamata: la lista NAP esterni
+    // restava vuota e il ramo isExternalNap in getColorForCountry era morto.
+    await loadExternalNaps();
     updateExternalNapsUI();
     syncUIToState();
     loadSphereOfInfluence();
 
     // ==================== BATTLE MARKERS ====================
     await updateBattleMarkers();
-    // Aggiorna i marcatori ogni 30 secondi
-    setInterval(updateBattleMarkers, 30000);
+    // Timer unico (prima ce n'erano due sovrapposti: 60s + 30s -> richieste
+    // doppie e 429). Viene azzerato se refreshData viene rieseguita.
+    if (battleMarkersTimer) clearInterval(battleMarkersTimer);
+    battleMarkersTimer = setInterval(updateBattleMarkers, 30000);
 
     showToast('Strategic data loaded', 'success');
   } catch (e) {

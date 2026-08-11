@@ -1,4 +1,4 @@
-import { API_KEY, API_BASE_URL } from './config.js';
+import { API_BASE_URL } from './config.js';
 
 // ==================== BATCHING tRPC ====================
 // Combina più procedure tRPC in un unico POST (?batch=1), riducendo il
@@ -135,15 +135,9 @@ export function hideRateLimitTooltip() {
   }
 }
 
-// ==================== FETCH CON AUTENTICAZIONE ====================
-export function fetchWithAuth(url, options = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-    'X-API-KEY': API_KEY,
-  };
-  return fetch(url, { ...options, headers });
-}
+// fetchWithAuth rimossa insieme ad API_KEY: non era usata da nessun modulo e
+// l'unico effetto era esporre la chiave nel bundle client.
+
 export function parseCSV(csvText) {
   const rows = [];
   const lines = csvText.trim().split(/\r?\n/);
@@ -167,18 +161,54 @@ export function fmtNumber(n) {
   return n.toLocaleString();
 }
 
+// ==================== ESCAPE HTML ====================
+// I nomi nazione/alleanza arrivano dall'API di gioco e finivano dritti dentro
+// innerHTML in decine di punti: se un giocatore puo' scegliere il nome del
+// proprio paese, e' una XSS. Usare SEMPRE su testo non fidato interpolato.
+export function escapeHtml(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ==================== TOAST ====================
+// Implementazione unica (con icone e progress bar). Prima ne esistevano due,
+// una qui e una in ui.js: i moduli importavano l'una o l'altra e i toast
+// avevano due aspetti diversi nella stessa app. Sta in utils.js e non in
+// ui.js per evitare il ciclo di import ui <-> utils.
+const TOAST_ICONS = {
+  info: '💬',
+  success: '✅',
+  error: '❌',
+  warning: '⚠️',
+};
+
 export function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
+  const parts = message.split(' | ');
+  const title = parts[0];
+  const detail = parts[1] || '';
   const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <div class="toast-icon ${type}">${TOAST_ICONS[type] || '💬'}</div>
+    <div class="toast-body">
+      <div class="toast-title">${escapeHtml(title)}</div>
+      ${detail ? `<div class="toast-msg">${escapeHtml(detail)}</div>` : ''}
+      <div class="toast-progress"><div class="toast-prog-fill ${type}"></div></div>
+    </div>
+  `;
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
+
 
 // ==================== LOADING ====================
 export function showLoading() {
